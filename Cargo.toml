@@ -1,0 +1,7 @@
+[package]
+name = "cs6600"
+version = "0.1.0"
+edition = "2021"
+description = "cs6600"
+
+[dependencies]
