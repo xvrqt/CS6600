@@ -1,40 +1,41 @@
-{pkgs ? import <nixpkgs> {}}:
-pkgs.rustPlatform.buildRustPackage rec {
-  pname = "cs6600";
-  version = "0.1.0";
-  cargoLock.lockFile = ./Cargo.lock;
-  src = ./.;
+{pkgs ? import <nixpkgs> {}}: let
+  manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+in
+  pkgs.rustPlatform.buildRustPackage {
+    pname = manifest.name;
+    version = manifest.version;
 
-  #src = pkgs.lib.cleanSource ./.;
-  buildInputs = with pkgs; [
-    libGL
-    glfw
-    wlr-protocols
-    libxkbcommon
-    wayland-protocols
-    cmake
-    extra-cmake-modules
-    glfw-wayland
-    wayland
-    stdenv
-    pkg-config
-    libglvnd
-  ];
-  nativeBuildInputs = with pkgs; [
-    libGL
-    glfw
-    wlr-protocols
-    libxkbcommon
-    wayland-protocols
-    cmake
-    extra-cmake-modules
-    glfw-wayland
-    wayland
-    stdenv
-    pkg-config
-    libglvnd
-  ];
-  #LD_LIBRARY_PATH = "${pkgs.cmake}/lib";
-  #LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath buildInputs}";
-  #packages = buildInputs;
-}
+    src = ./.;
+    cargoLock.lockFile = ./Cargo.lock;
+
+    runtimeDependencies = with pkgs; [
+      # GLFW will look but not find these unless explicitly
+      # added to its rpath
+      libglvnd # Vendor Neutral GL Dispatch
+      libxkbcommon # Keyboard Handling
+    ];
+
+    #src = pkgs.lib.cleanSource ./.;
+    buildInputs = with pkgs; [
+      # AutoPatchELFHook will fail unless this is included
+      stdenv.cc.cc.libgcc # Compiler
+
+      # Required by GLFW
+      libxkbcommon # Keyboard Handling
+      extra-cmake-modules # For find_package()
+
+      # Wayland Dependencies (which I personally need)
+      wayland # Window Client
+      glfw-wayland # Intergration
+      wayland-protocols # Extends Wayland's Core Protocols
+    ];
+
+    nativeBuildInputs = with pkgs; [
+      # Needed or GLFW cannot find 'libxkbcommon'
+      autoPatchelfHook # NixOS Magic to resolve dynamic linking of buildInputs
+
+      # Needed by GLFW crate's special build phase
+      cmake # CPP Program Builder
+      pkg-config # Lists dependencies and library paths
+    ];
+  }

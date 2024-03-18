@@ -9,13 +9,13 @@
     flake-utils.url = "github:numtide/flake-utils";
     #
     # # More Up-to-date Version of Rust
-    # rust-overlay = {
-    #   url = "github:oxalica/rust-overlay";
-    #   inputs = {
-    #     nixpkgs.follows = "nixpkgs";
-    #     flake-utils.follows = "flake-utils";
-    #   };
-    # };
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+      };
+    };
   };
 
   outputs = inputs:
@@ -32,6 +32,7 @@
 
           # Need GLFW & OpenGL to Build + Link
           buildInputs = with pkgs; [
+            stdenv.cc.cc.libgcc
             libGL
             wlr-protocols
             libxkbcommon
@@ -57,6 +58,7 @@
 
             #src = pkgs.lib.cleanSource ./.;
             buildInputs = with pkgs; [
+              stdenv.cc.cc.libgcc
               libGL
               glfw
               wlr-protocols
