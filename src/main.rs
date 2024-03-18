@@ -1,14 +1,17 @@
-
+// TODO: Remove this, we should follow RUST's protocol
 #![allow(non_upper_case_globals)]
-use glfw::{Context, Key, Action};
-use gl::types::*;
 
-use std::sync::mpsc::Receiver;
+use cs6600::window::create_default_gl_window;
+
+use gl::types::*;
+use glfw::{Action, Context, Key};
+
 use std::ffi::CString;
-use std::ptr;
-use std::str;
 use std::mem;
 use std::os::raw::c_void;
+use std::ptr;
+use std::str;
+use std::sync::mpsc::Receiver;
 
 // settings
 const SCR_WIDTH: u32 = 800;
@@ -31,26 +34,9 @@ const fragmentShaderSource: &str = r#"
 "#;
 
 #[allow(non_snake_case)]
-fn main() {
-    // glfw: initialize and configure
-    // ------------------------------
-    let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
-    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-    glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
-    #[cfg(target_os = "macos")]
-    glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+fn main() -> Result<(), String> {
+    let (mut glfw, mut window, events) = create_default_gl_window()?;
 
-    // glfw window creation
-    // --------------------
-    let (mut window, events) = glfw.create_window(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", glfw::WindowMode::Windowed)
-        .expect("Failed to create GLFW window");
-
-    window.make_current();
-    window.set_key_polling(true);
-    window.set_framebuffer_size_polling(true);
-
-    // gl: load all OpenGL function pointers
-    // ---------------------------------------
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
     let (shaderProgram, VAO) = unsafe {
@@ -68,8 +54,16 @@ fn main() {
         infoLog.set_len(512 - 1); // subtract 1 to skip the trailing null character
         gl::GetShaderiv(vertexShader, gl::COMPILE_STATUS, &mut success);
         if success != gl::TRUE as GLint {
-            gl::GetShaderInfoLog(vertexShader, 512, ptr::null_mut(), infoLog.as_mut_ptr() as *mut GLchar);
-            println!("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n{}", str::from_utf8(&infoLog).unwrap());
+            gl::GetShaderInfoLog(
+                vertexShader,
+                512,
+                ptr::null_mut(),
+                infoLog.as_mut_ptr() as *mut GLchar,
+            );
+            println!(
+                "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n{}",
+                str::from_utf8(&infoLog).unwrap()
+            );
         }
 
         // fragment shader
@@ -80,8 +74,16 @@ fn main() {
         // check for shader compile errors
         gl::GetShaderiv(fragmentShader, gl::COMPILE_STATUS, &mut success);
         if success != gl::TRUE as GLint {
-            gl::GetShaderInfoLog(fragmentShader, 512, ptr::null_mut(), infoLog.as_mut_ptr() as *mut GLchar);
-            println!("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n{}", str::from_utf8(&infoLog).unwrap());
+            gl::GetShaderInfoLog(
+                fragmentShader,
+                512,
+                ptr::null_mut(),
+                infoLog.as_mut_ptr() as *mut GLchar,
+            );
+            println!(
+                "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n{}",
+                str::from_utf8(&infoLog).unwrap()
+            );
         }
 
         // link shaders
@@ -92,8 +94,16 @@ fn main() {
         // check for linking errors
         gl::GetProgramiv(shaderProgram, gl::LINK_STATUS, &mut success);
         if success != gl::TRUE as GLint {
-            gl::GetProgramInfoLog(shaderProgram, 512, ptr::null_mut(), infoLog.as_mut_ptr() as *mut GLchar);
-            println!("ERROR::SHADER::PROGRAM::COMPILATION_FAILED\n{}", str::from_utf8(&infoLog).unwrap());
+            gl::GetProgramInfoLog(
+                shaderProgram,
+                512,
+                ptr::null_mut(),
+                infoLog.as_mut_ptr() as *mut GLchar,
+            );
+            println!(
+                "ERROR::SHADER::PROGRAM::COMPILATION_FAILED\n{}",
+                str::from_utf8(&infoLog).unwrap()
+            );
         }
         gl::DeleteShader(vertexShader);
         gl::DeleteShader(fragmentShader);
@@ -103,8 +113,8 @@ fn main() {
         // HINT: type annotation is crucial since default for float literals is f64
         let vertices: [f32; 9] = [
             -0.5, -0.5, 0.0, // left
-             0.5, -0.5, 0.0, // right
-             0.0,  0.5, 0.0  // top
+            0.5, -0.5, 0.0, // right
+            0.0, 0.5, 0.0, // top
         ];
         let (mut VBO, mut VAO) = (0, 0);
         gl::GenVertexArrays(1, &mut VAO);
@@ -113,12 +123,21 @@ fn main() {
         gl::BindVertexArray(VAO);
 
         gl::BindBuffer(gl::ARRAY_BUFFER, VBO);
-        gl::BufferData(gl::ARRAY_BUFFER,
-                       (vertices.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-                       &vertices[0] as *const f32 as *const c_void,
-                       gl::STATIC_DRAW);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (vertices.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            &vertices[0] as *const f32 as *const c_void,
+            gl::STATIC_DRAW,
+        );
 
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 3 * mem::size_of::<GLfloat>() as GLsizei, ptr::null());
+        gl::VertexAttribPointer(
+            0,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            3 * mem::size_of::<GLfloat>() as GLsizei,
+            ptr::null(),
+        );
         gl::EnableVertexAttribArray(0);
 
         // note that this is allowed, the call to gl::VertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
@@ -159,10 +178,14 @@ fn main() {
         window.swap_buffers();
         glfw.poll_events();
     }
+    Ok(())
 }
 
 // NOTE: not the same version as in common.rs!
-fn process_events(window: &mut glfw::Window, events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>) {
+fn process_events(
+    window: &mut glfw::Window,
+    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
+) {
     for (_, event) in glfw::flush_messages(events) {
         match event {
             glfw::WindowEvent::FramebufferSize(width, height) => {
@@ -170,7 +193,9 @@ fn process_events(window: &mut glfw::Window, events: &glfw::GlfwReceiver<(f64, g
                 // height will be significantly larger than specified on retina displays.
                 unsafe { gl::Viewport(0, 0, width, height) }
             }
-            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => window.set_should_close(true),
+            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+                window.set_should_close(true)
+            }
             _ => {}
         }
     }
