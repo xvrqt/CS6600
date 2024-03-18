@@ -3,46 +3,38 @@
 
   inputs = {
     # No need to live dangerously
-    nixpkgs.url = "github:nixos/nixpkgs";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
     # Helps us package for every type of system
     flake-utils.url = "github:numtide/flake-utils";
-
-    # ???
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
-
-    # Helps us package Rust programs using Nix
-    cargo2nix.url = "github:cargo2nix/cargo2nix/release-0.11.0";
-
-    # More Up-to-date Version of Rust
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-      };
-    };
+    #
+    # # More Up-to-date Version of Rust
+    # rust-overlay = {
+    #   url = "github:oxalica/rust-overlay";
+    #   inputs = {
+    #     nixpkgs.follows = "nixpkgs";
+    #     flake-utils.follows = "flake-utils";
+    #   };
+    # };
   };
 
   outputs = inputs:
     with inputs;
       flake-utils.lib.eachDefaultSystem (
         system: let
-          package_name = "cs6600";
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
-              cargo2nix.overlays.default
             ];
           };
+
+          pkgsFor = nixpkgs.legacyPackages;
 
           # Need GLFW & OpenGL to Build + Link
           buildInputs = with pkgs; [
             libGL
             wlr-protocols
+            libxkbcommon
             wayland-protocols
             extra-cmake-modules
             glfw-wayland
@@ -50,40 +42,69 @@
             stdenv
             cmake
             pkg-config
-            libxkbcommon
             libglvnd
           ];
 
-          nativeBuildInputs = with pkgs; [
-            # font-config
-          ];
+          # nativeBuildInputs = with pkgs; [
+          #   # font-config
+          # ];
 
-          rustPkgs = pkgs.rustBuilder.makePackageSet {
-            rustChannel = "stable";
-            rustVersion = "1.70.0";
-            packageFun = import ./Cargo.nix;
-            extraRustComponents = ["clippy"];
+          mkPkg = pkgs.rustPlatform.buildRustPackage {
+            pname = "cs6600";
+            version = "0.1.0";
+            cargoLock.lockFile = ./Cargo.lock;
+            src = ./.;
+
+            #src = pkgs.lib.cleanSource ./.;
+            buildInputs = with pkgs; [
+              libGL
+              glfw
+              wlr-protocols
+              libxkbcommon
+              wayland-protocols
+              cmake
+              extra-cmake-modules
+              glfw-wayland
+              wayland
+              stdenv
+              pkg-config
+              libglvnd
+            ];
+            nativeBuildInputs = with pkgs; [
+              libGL
+              glfw
+              wlr-protocols
+              libxkbcommon
+              wayland-protocols
+              cmake
+              extra-cmake-modules
+              glfw-wayland
+              wayland
+              stdenv
+              pkg-config
+              libglvnd
+            ];
+            #LD_LIBRARY_PATH = "${pkgs.cmake}/lib";
+            #LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath buildInputs}";
+            #packages = buildInputs;
           };
 
-          workspaceShell = rustPkgs.workspaceShell {
+          workspaceShell = pkgs.mkShell {
             packages = with pkgs;
               [
                 rustfmt
-                cargo2nix.packages.${system}.cargo2nix
               ]
-              ++ buildInputs
-              ++ nativeBuildInputs;
+              ++ buildInputs;
 
             buildInputs = buildInputs;
-            nativeBuildInputs = nativeBuildInputs;
             LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath buildInputs}";
           };
 
           ci = pkgs.rustBuilder.runTests rustPkgs.workspace.cargo2nix {};
         in rec {
+          inherit buildInputs;
           packages = {
-            cs6600 = (rustPkgs.workspace.cs6600 {}).bin;
-            default = packages.cs6600;
+            default = pkgsFor.${system}.callPackage ./default.nix {};
           };
           devShell = workspaceShell;
         }
