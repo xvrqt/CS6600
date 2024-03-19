@@ -8,8 +8,8 @@ const HEIGHT: u32 = 600;
 const WINDOW_TITLE: &str = "OpenGL";
 
 // Default OpenGL API Version
-const GL_MAJOR_VERSION: u32 = 3;
-const GL_MINOR_VERSION: u32 = 3;
+const GL_MAJOR_VERSION: u32 = 4;
+const GL_MINOR_VERSION: u32 = 6;
 
 const MODE: glfw::WindowMode = glfw::WindowMode::Windowed;
 
