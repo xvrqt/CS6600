@@ -1,3 +1,7 @@
+// Import our Error Type
+pub mod error;
+pub use error::WindowError;
+
 use glfw::Context;
 
 // Default window size
@@ -26,7 +30,7 @@ pub fn create_gl_window<T: AsRef<str>>(
     height: u32,
     gl_major_version: u32,
     gl_minor_version: u32,
-) -> Result<(GLFW, GLWindow, WindowEvents), String> {
+) -> Result<(GLFW, GLWindow, WindowEvents), WindowError> {
     glfw::init(glfw::fail_on_errors)
         .and_then(|mut glfw| {
             // Set the version of OpenGL we're using
@@ -42,10 +46,10 @@ pub fn create_gl_window<T: AsRef<str>>(
             glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
             Ok(glfw)
         })
-        .map_err(|err| err.to_string())
+        .map_err(|_| WindowError::GLFWInitFailed)
         .and_then(|mut glfw| {
             glfw.create_window(width, height, title.as_ref(), MODE)
-                .ok_or(String::from("Failed to create window"))
+                .ok_or(WindowError::WindowCreateFailed)
                 .and_then(|(window, events)| Ok((glfw, window, events)))
         })
         .and_then(|(glfw, mut window, events)| {
@@ -60,7 +64,7 @@ pub fn create_gl_window<T: AsRef<str>>(
 }
 
 // Convenience function to open a standard sized window
-pub fn create_default_gl_window() -> Result<(GLFW, GLWindow, WindowEvents), String> {
+pub fn create_default_gl_window() -> Result<(GLFW, GLWindow, WindowEvents), WindowError> {
     create_gl_window(
         WINDOW_TITLE,
         WIDTH,

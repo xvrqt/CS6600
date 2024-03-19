@@ -2,8 +2,11 @@
 #![allow(non_upper_case_globals)]
 
 // My Libs
-use cs6600::shaders::GLPROGRAM;
 use cs6600::window::create_default_gl_window;
+use cs6600::{
+    shader::{Fragment, Vertex},
+    GLError, GLProgram, Shader,
+};
 
 use gl::types::*;
 use glfw::{Action, Context, Key};
@@ -30,14 +33,22 @@ const fragmentShaderSource: &str = r#"
 "#;
 
 #[allow(non_snake_case)]
-fn main() -> Result<(), String> {
+fn main() -> Result<(), GLError> {
     // GLFW lib handle, window handle, and event loop for that window handle
     let (mut glfw, mut window, events) = create_default_gl_window()?;
 
     // Load function pointers from the user's linked OpenGL library
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
-    let program = GLPROGRAM::new(vertexShaderSource, fragmentShaderSource).unwrap();
+    // Compile Shaders
+    let vertex_shader = Shader::<Vertex>::new(vertexShaderSource)?;
+    let fragment_shader = Shader::<Fragment>::new(fragmentShaderSource)?;
+
+    // Link Shaders to Program
+    let program = GLProgram::builder()
+        .attach_vertex_shader(vertex_shader)
+        .attach_fragment_shader(fragment_shader)
+        .link_shaders()?;
 
     let VAO = unsafe {
         // set up vertex data (and buffer(s)) and configure vertex attributes
