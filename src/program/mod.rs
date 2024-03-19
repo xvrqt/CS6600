@@ -8,6 +8,8 @@ use crate::shader::{Fragment, Shader, Vertex};
 // OpenGL
 use gl::types::*;
 
+use std::ffi::CString;
+
 // Semantic OpenGL Program
 #[derive(Debug)]
 pub struct GLProgram<'a> {
@@ -27,6 +29,25 @@ impl GLProgram<'_> {
             vertex_shader: NoVS,
             fragment_shader: NoFS,
         }
+    }
+
+    // Sets a uniform variable at the location
+    pub fn set_uniform<S>(&self, name: S, value: (f32, f32, f32)) -> Result<(), ProgramError>
+    where
+        S: AsRef<str>,
+    {
+        let (x, y, z) = value;
+        let name = CString::new(name.as_ref().as_bytes())
+            .map_err(|_| ProgramError::SettingUniformValue)?;
+
+        unsafe {
+            gl::UseProgram(self.id);
+            let location = gl::GetUniformLocation(self.id, name.into_raw());
+            println!("{:?}", location);
+            gl::Uniform3f(location, x, y, z);
+        }
+
+        Ok(())
     }
 
     // Returns the OpenGL ID of the id
@@ -100,7 +121,9 @@ impl<'a> GLProgramBuilder<Shader<'a, Vertex>, Shader<'a, Fragment>> {
 
                 // Set up a buffer to receive the log
                 let mut error_log = Vec::<u8>::with_capacity(log_length);
-                error_log.set_len(log_length - 1); // Don't read the NULL terminator
+                if log_length > 0 {
+                    error_log.set_len(log_length - 1);
+                } // Don't read the NULL terminator
                 gl::GetProgramInfoLog(
                     self.id,
                     512,

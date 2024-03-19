@@ -4,6 +4,7 @@ use crate::shader::error::ShaderError;
 pub enum ProgramError {
     ShaderCompilation(ShaderError),
     Linking(String),
+    SettingUniformValue,
 }
 
 impl std::error::Error for ProgramError {}
@@ -16,6 +17,9 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::Linking(error_log) => {
                 write!(f, "Could not link shaders to the program.\n{}", error_log)
+            }
+            ProgramError::SettingUniformValue => {
+                write!(f, "Failed to set Uniform Value.\n")
             }
         }
     }

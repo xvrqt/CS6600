@@ -2,10 +2,9 @@
 #![allow(non_upper_case_globals)]
 
 // My Libs
-use cs6600::window::create_default_gl_window;
 use cs6600::{
     shader::{Fragment, Vertex},
-    GLError, GLProgram, Shader,
+    window, GLError, GLProgram, Shader,
 };
 
 use gl::types::*;
@@ -17,7 +16,7 @@ use std::ptr;
 use std::str;
 
 const vertexShaderSource: &str = r#"
-    #version 330 core
+    #version 460 core
     layout (location = 0) in vec3 aPos;
     void main() {
        gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
@@ -25,17 +24,18 @@ const vertexShaderSource: &str = r#"
 "#;
 
 const fragmentShaderSource: &str = r#"
-    #version 330 core
+    #version 460 core
+    uniform vec3 clr; 
     out vec4 FragColor;
     void main() {
-       FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+       FragColor = vec4(clr, 1.0f);
     }
 "#;
 
 #[allow(non_snake_case)]
 fn main() -> Result<(), GLError> {
     // GLFW lib handle, window handle, and event loop for that window handle
-    let (mut glfw, mut window, events) = create_default_gl_window()?;
+    let (mut glfw, mut window, events) = window::create_default()?;
 
     // Load function pointers from the user's linked OpenGL library
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
@@ -49,6 +49,7 @@ fn main() -> Result<(), GLError> {
         .attach_vertex_shader(vertex_shader)
         .attach_fragment_shader(fragment_shader)
         .link_shaders()?;
+    program.set_uniform("clr", (0.5, 0.1, 0.9));
 
     let VAO = unsafe {
         // set up vertex data (and buffer(s)) and configure vertex attributes

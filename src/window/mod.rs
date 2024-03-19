@@ -24,7 +24,7 @@ type WindowEvents = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
 
 // Creates and opens a new window, with specified dimensions, API version, and title
 // Returns a handle to the window, and to the window's event loop
-pub fn create_gl_window<T: AsRef<str>>(
+pub fn create<T: AsRef<str>>(
     title: T,
     width: u32,
     height: u32,
@@ -64,8 +64,8 @@ pub fn create_gl_window<T: AsRef<str>>(
 }
 
 // Convenience function to open a standard sized window
-pub fn create_default_gl_window() -> Result<(GLFW, GLWindow, WindowEvents), WindowError> {
-    create_gl_window(
+pub fn create_default() -> Result<(GLFW, GLWindow, WindowEvents), WindowError> {
+    create(
         WINDOW_TITLE,
         WIDTH,
         HEIGHT,
