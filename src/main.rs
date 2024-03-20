@@ -4,6 +4,7 @@
 // My Libs
 use cs6600::{
     shader::{Fragment, Vertex},
+    types::*,
     window, GLError, GLProgram, Shader,
 };
 
@@ -26,9 +27,10 @@ const vertexShaderSource: &str = r#"
 const fragmentShaderSource: &str = r#"
     #version 460 core
     uniform vec3 clr; 
+    uniform vec2 gay[1];
     out vec4 FragColor;
     void main() {
-       FragColor = vec4(clr, 1.0f);
+       FragColor = vec4(gay[0].x, gay[0].y, 0.9, 1.0f);
     }
 "#;
 
@@ -49,7 +51,12 @@ fn main() -> Result<(), GLError> {
         .attach_vertex_shader(vertex_shader)
         .attach_fragment_shader(fragment_shader)
         .link_shaders()?;
-    program.set_uniform("clr", (0.5, 0.1, 0.9));
+
+    let clr = GL3F(0.5, 0.1, 0.9);
+    let gay: GL2FV = GL2FV(vec![(0.5, 0.1)]);
+
+    program.set_uniform("clr", clr)?;
+    program.set_uniform("gay", gay)?;
 
     let VAO = unsafe {
         // set up vertex data (and buffer(s)) and configure vertex attributes

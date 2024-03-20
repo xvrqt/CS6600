@@ -2,6 +2,8 @@
 pub mod error;
 pub use error::ProgramError;
 
+use crate::uniform::Uniform;
+
 // We need the Shader type to link them to our id
 use crate::shader::{Fragment, Shader, Vertex};
 
@@ -32,22 +34,37 @@ impl GLProgram<'_> {
     }
 
     // Sets a uniform variable at the location
-    pub fn set_uniform<S>(&self, name: S, value: (f32, f32, f32)) -> Result<(), ProgramError>
+    pub fn set_uniform<S, Type>(&self, name: S, mut value: Type) -> Result<(), ProgramError>
+    where
+        S: AsRef<str>,
+        Type: Uniform,
+    {
+        unsafe {
+            gl::UseProgram(self.id);
+        }
+        let location = self.get_uniform_location(name)?;
+        value
+            .set(location)
+            .map_err(|e| ProgramError::SettingUniformValue(e.to_string()))?;
+
+        Ok(())
+    }
+
+    // Convenience
+    fn get_uniform_location<S>(&self, name: S) -> Result<GLint, ProgramError>
     where
         S: AsRef<str>,
     {
-        let (x, y, z) = value;
-        let name = CString::new(name.as_ref().as_bytes())
-            .map_err(|_| ProgramError::SettingUniformValue)?;
-
+        let name = CString::new(name.as_ref().as_bytes()).map_err(|_| {
+            ProgramError::SettingUniformValue(
+                "Could not create CString from the uniform's location name.".to_string(),
+            )
+        })?;
+        let location;
         unsafe {
-            gl::UseProgram(self.id);
-            let location = gl::GetUniformLocation(self.id, name.into_raw());
-            println!("{:?}", location);
-            gl::Uniform3f(location, x, y, z);
+            location = gl::GetUniformLocation(self.id, name.into_raw());
         }
-
-        Ok(())
+        Ok(location)
     }
 
     // Returns the OpenGL ID of the id
