@@ -2,7 +2,7 @@
 pub mod error;
 pub use error::ProgramError;
 
-use crate::uniform::Uniform;
+use crate::uniform::{Uniform, UniformError};
 
 // We need the Shader type to link them to our id
 use crate::shader::{Fragment, Shader, Vertex};
@@ -55,16 +55,19 @@ impl GLProgram<'_> {
     where
         S: AsRef<str>,
     {
-        let name = CString::new(name.as_ref().as_bytes()).map_err(|_| {
+        let c_name = CString::new(name.as_ref().as_bytes()).map_err(|_| {
             ProgramError::SettingUniformValue(
                 "Could not create CString from the uniform's location name.".to_string(),
             )
         })?;
         let location;
         unsafe {
-            location = gl::GetUniformLocation(self.id, name.into_raw());
+            location = gl::GetUniformLocation(self.id, c_name.into_raw());
         }
-        Ok(location)
+        match location {
+            -1 => Err(ProgramError::GetUniformLocation(name.as_ref().into())),
+            _ => Ok(location),
+        }
     }
 
     // Returns the OpenGL ID of the id

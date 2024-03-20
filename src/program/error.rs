@@ -1,10 +1,12 @@
 use crate::shader::error::ShaderError;
+use gl::types::*;
 // Error for GLProgram
 #[derive(Debug)]
 pub enum ProgramError {
     ShaderCompilation(ShaderError),
     Linking(String),
     SettingUniformValue(String),
+    GetUniformLocation(String),
 }
 
 impl std::error::Error for ProgramError {}
@@ -20,6 +22,9 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::SettingUniformValue(error) => {
                 write!(f, "Failed to set Uniform Value.\n{}", error)
+            }
+            ProgramError::GetUniformLocation(name) => {
+                write!(f, "Failed to find the location for '{}'.\n", name)
             }
         }
     }
