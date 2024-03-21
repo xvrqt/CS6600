@@ -2,7 +2,9 @@
 pub mod error;
 pub use error::ProgramError;
 
-use crate::uniform::{Uniform, UniformError};
+use crate::types::*;
+use crate::uniform::{MagicUniform, Uniform};
+use crate::window::FrameEvents;
 
 // We need the Shader type to link them to our id
 use crate::shader::{Fragment, Shader, Vertex};
@@ -14,10 +16,13 @@ use std::ffi::CString;
 
 // Semantic OpenGL Program
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct GLProgram<'a> {
+    id: u32, // OpenGL keeps track of programs with integer IDs
     vertex_shader: Shader<'a, Vertex>,
     fragment_shader: Shader<'a, Fragment>,
-    id: u32, // OpenGL keeps track of programs with integer IDs
+    // List of uniforms we update automagically for the caller
+    magic_uniforms: MagicUniform,
 }
 
 impl GLProgram<'_> {
@@ -31,6 +36,29 @@ impl GLProgram<'_> {
             vertex_shader: NoVS,
             fragment_shader: NoFS,
         }
+    }
+
+    // Enables a magic uniform value
+    pub fn enable_uniform(mut self, uniform: MagicUniform) -> Self {
+        self.magic_uniforms = self.magic_uniforms | uniform;
+        self
+    }
+
+    // Checks which magic uniforms are enabled and then sets them accordingly
+    fn update_magic_uniforms(&self, vars: &FrameEvents) -> Result<(), ProgramError> {
+        if self.magic_uniforms.contains(MagicUniform::TIME) {
+            self.set_uniform("time", GL1F(vars.time))?;
+        }
+        if self.magic_uniforms.contains(MagicUniform::RESOLUTION) {
+            self.set_uniform("resolution", GL2F(vars.resolution.0, vars.resolution.1))?;
+        }
+        Ok(())
+    }
+
+    // Updates the magic uniforms, draws every VAO in order
+    pub fn draw(&self, frame_events: &FrameEvents) -> Result<(), ProgramError> {
+        self.update_magic_uniforms(&frame_events)?;
+        Ok(())
     }
 
     // Sets a uniform variable at the location
@@ -169,6 +197,7 @@ impl<'a> GLProgramBuilder<Shader<'a, Vertex>, Shader<'a, Fragment>> {
             id,
             vertex_shader,
             fragment_shader,
+            magic_uniforms: MagicUniform::NONE,
         })
     }
 }

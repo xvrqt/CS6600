@@ -5,7 +5,10 @@
 use cs6600::{
     shader::{Fragment, Vertex},
     types::*,
-    window, GLError, GLProgram, Shader,
+    uniform::MagicUniform,
+    window,
+    window::FrameEvents,
+    GLError, GLProgram, Shader,
 };
 
 use gl::types::*;
@@ -116,13 +119,11 @@ fn main() -> Result<(), GLError> {
     let program = GLProgram::builder()
         .attach_vertex_shader(vertex_shader)
         .attach_fragment_shader(fragment_shader)
-        .link_shaders()?;
+        .link_shaders()?
+        .enable_uniform(MagicUniform::TIME) // Will set the float 'time' as a uniform every call
+        .enable_uniform(MagicUniform::RESOLUTION); // Will pass the 'resolution' as a vec2
 
-    // let clr = GL2F(0.5, 0.1);
-    // let gay: GL2FV = GL2FV(vec![(0.5, 0.1)]);
-
-    // program.set_uniform("clr", GL2F(0.5, 0.1))?;
-    // program.set_uniform("gay", gay)?;
+    let render_queue = vec![program];
 
     let VAO = unsafe {
         // set up vertex data (and buffer(s)) and configure vertex attributes
@@ -165,63 +166,68 @@ fn main() -> Result<(), GLError> {
         // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
         gl::BindVertexArray(0);
 
-        // uncomment this call to draw in wireframe polygons.
-        // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
-
         VAO
     };
 
     // Time
-    let time = SystemTime::now();
-    program.set_uniform("resolution", GL2F(1000.0, 1000.0))?;
+    // program.set_uniform("resolution", GL2F(1000.0, 1000.0))?;
 
     // render loop
-    // -----------
-    while !window.should_close() {
-        // events
-        // -----
-        process_events(&mut window, &events, &program);
+    let time = SystemTime::now();
+    let mut frame_events = FrameEvents {
+        // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
+        time: glfw.get_time() as f32,
+        resolution: match window.get_size() {
+            (a, b) => (a as f32, b as f32),
+        },
+    };
 
-        // Update the time variable
+    while !window.should_close() {
+        // Process events, and extract relevant program details
+        process_events(&glfw, &mut window, &events, &mut frame_events)?;
+
+        // Update the time elapsed
         if let Ok(elapsed) = time.elapsed() {
-            program.set_uniform("time", GL1F(elapsed.as_secs_f32() as GLfloat))?;
+            frame_events.time = elapsed.as_secs_f32();
+            // program.set_uniform("time", GL1F(elapsed.as_secs_f32() as GLfloat))?;
         }
 
-        // render
-        // ------
+        // RENDER
+        // Flags that are used to set 'magic' uniforms such as 'time' or 'mouse position'or each program, render each VAO
+        for program in render_queue.iter() {
+            program.draw(&frame_events)?;
+        }
         unsafe {
             gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
             // draw our first triangle
-            gl::UseProgram(program.id());
+            // gl::UseProgram(program.id());
             gl::BindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
             // glBindVertexArray(0); // no need to unbind it every time
         }
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
         window.swap_buffers();
         glfw.poll_events();
     }
     Ok(())
 }
 
-// NOTE: not the same version as in common.rs!
 fn process_events(
+    glfw: &glfw::Glfw,
     window: &mut glfw::Window,
     events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
-    program: &GLProgram,
-) {
+    frame_events: &mut FrameEvents,
+) -> Result<(), GLError> {
+    frame_events.time = glfw.get_time() as f32;
     for (_, event) in glfw::flush_messages(events) {
         match event {
+            // Update Viewport, and Resolution Shader Uniform
             glfw::WindowEvent::FramebufferSize(width, height) => {
-                // make sure the viewport matches the new window dimensions; note that width and
-                // height will be significantly larger than specified on retina displays.
-                program
-                    .set_uniform("resolution", GL2F(width as f32, height as f32))
-                    .expect("AAA");
+                frame_events.resolution = (width as f32, height as f32);
+                // program.set_uniform("resolution", GL2F(width as GLfloat, height as GLfloat))?;
                 unsafe { gl::Viewport(0, 0, width, height) }
             }
             glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
@@ -230,4 +236,5 @@ fn process_events(
             _ => {}
         }
     }
+    Ok(())
 }

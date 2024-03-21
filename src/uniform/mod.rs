@@ -3,7 +3,21 @@ pub use error::UniformError;
 
 use gl::types::*;
 
+use bitflags::bitflags;
 use std::vec::Vec;
+
+// Flags that are used to set 'magic' uniforms such as 'time' or 'mouse position'
+// During the render loop, the program will check which flags are set
+// and update the corresponding uniform values appropriately
+bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct MagicUniform: u8 {
+        const NONE = 0;
+        const TIME = 1;
+        const RESOLUTION = 1 << 1;
+    }
+}
+
 // Uniform Types
 pub trait Uniform {
     fn set(&mut self, location: GLint) -> Result<(), UniformError>;

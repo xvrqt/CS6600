@@ -29,7 +29,7 @@
           };
 
           pkgsFor = nixpkgs.legacyPackages;
-        in rec {
+        in {
           packages = {
             default = pkgsFor.${system}.callPackage ./default.nix {};
           };
