@@ -6,13 +6,18 @@ use crate::types::*;
 use crate::uniform::{MagicUniform, Uniform};
 use crate::window::FrameEvents;
 
+use crate::vao::{SetAttributePointer, VAO};
+
 // We need the Shader type to link them to our id
 use crate::shader::{Fragment, Shader, Vertex};
 
 // OpenGL
 use gl::types::*;
 
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::ffi::CString;
+use std::vec::Vec;
 
 // Semantic OpenGL Program
 #[derive(Debug)]
@@ -23,9 +28,12 @@ pub struct GLProgram<'a> {
     fragment_shader: Shader<'a, Fragment>,
     // List of uniforms we update automagically for the caller
     magic_uniforms: MagicUniform,
+    // List of VAOs to render
+    vaos: HashMap<String, VAO>,
 }
 
 impl GLProgram<'_> {
+    // Create a new OpenGL Program
     pub fn builder() -> GLProgramBuilder<NoVS, NoFS> {
         let id;
         unsafe {
@@ -35,6 +43,18 @@ impl GLProgram<'_> {
             id,
             vertex_shader: NoVS,
             fragment_shader: NoFS,
+        }
+    }
+
+    // Create a new, or edit an existing, VAO
+    pub fn vao<S>(&mut self, name: S) -> &mut VAO
+    where
+        S: AsRef<str>,
+    {
+        // Return existing, or create a new VAO
+        match self.vaos.entry(name.as_ref().to_string()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(VAO::new(self.id)),
         }
     }
 
@@ -58,6 +78,19 @@ impl GLProgram<'_> {
     // Updates the magic uniforms, draws every VAO in order
     pub fn draw(&self, frame_events: &FrameEvents) -> Result<(), ProgramError> {
         self.update_magic_uniforms(&frame_events)?;
+        unsafe {
+            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+        for vao in self.vaos.values() {
+            if vao.enabled {
+                unsafe {
+                    gl::BindVertexArray(vao.id);
+                    gl::EnableVertexAttribArray(0);
+                    gl::DrawArrays(gl::TRIANGLES, 0, 3);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -198,6 +231,7 @@ impl<'a> GLProgramBuilder<Shader<'a, Vertex>, Shader<'a, Fragment>> {
             vertex_shader,
             fragment_shader,
             magic_uniforms: MagicUniform::NONE,
+            vaos: HashMap::new(),
         })
     }
 }

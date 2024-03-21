@@ -1,4 +1,5 @@
 use crate::shader::error::ShaderError;
+use crate::vao::VAOError;
 use gl::types::*;
 // Error for GLProgram
 #[derive(Debug)]
@@ -7,6 +8,9 @@ pub enum ProgramError {
     Linking(String),
     SettingUniformValue(String),
     GetUniformLocation(String),
+    VAOAlreadyExists(String),
+    VAODoesNotExist(String),
+    VAO(VAOError),
 }
 
 impl std::error::Error for ProgramError {}
@@ -25,6 +29,23 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::GetUniformLocation(name) => {
                 write!(f, "Failed to find the location for '{}'.\n", name)
+            }
+            ProgramError::VAO(error) => {
+                write!(f, "VAO ERROR: '{}'.\n", error)
+            }
+            ProgramError::VAOAlreadyExists(name) => {
+                write!(
+                    f,
+                    "VAO with name: '{}' already exists for this program.\n",
+                    name
+                )
+            }
+            ProgramError::VAODoesNotExist(name) => {
+                write!(
+                    f,
+                    "VAO with name: '{}' does not exist for this program. Cannot set attribute on it.\n",
+                    name
+                )
             }
         }
     }

@@ -6,6 +6,7 @@ use cs6600::{
     shader::{Fragment, Vertex},
     types::*,
     uniform::MagicUniform,
+    vao::Vertex3,
     window,
     window::FrameEvents,
     GLError, GLProgram, Shader,
@@ -18,13 +19,12 @@ use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 use std::str;
-use std::time::SystemTime;
 
 const vertexShaderSource: &str = r#"
     #version 460 core
-    layout (location = 0) in vec3 aPos;
+    layout (location = 0) in vec3 vertices;
     void main() {
-       gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
+       gl_Position = vec4(vertices.x, vertices.y, vertices.z, 1.0);
     }
 "#;
 
@@ -32,73 +32,78 @@ const fragmentShaderSource: &str = r#"
     #version 460 core
     #define PI 3.141592653
 
-    uniform float time;
-    uniform vec2 resolution;
-    // uniform vec2 clr;
+    // uniform float time;
+    // uniform vec2 resolution;
 
-    out vec4 fragColor;
     in vec4 gl_FragCoord;
+    out vec4 fragColor;
 
-    float sdCircle(in vec2 o, in vec2 p, in float r) {
-        return distance(o,p) - r;
-    }
-
-    vec2 circle(in float t, in float r) {
-        float x = r * 10.0 * sin((2.0*PI)+t); 
-        float y = r * 4.0 * cos((2.0*PI*2.0)+t);
-        return vec2(x,y);
-    }
-
-    vec3 palette(in float t) {
-        vec3 a = vec3(0.5,0.5,0.5);
-        vec3 b = vec3(0.5,0.5,0.5);
-        vec3 c = vec3(1.0,1.0,1.0);
-        vec3 d = vec3(0.268,0.416,0.557);
-
-        return a + b * cos((2.0*PI)*((c*t)+d));
-    }
-
-    void main() {
-        // Normalized pixel coordinates (from 0 to 1)
-        vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / resolution.y;
-        vec2 uv0 = uv; // Save orginal origin
-
-        // How Fast the Circle Moves
-        float speed = .25;
-        float t = time * speed;    
-        // Final Color
-        vec3 finalColor = vec3(0.0);
-
-        float l = sdCircle(circle(t,0.25),uv0,0.5);
-        l = 2.0 * sin(l*8. + time) + 2.5;
-        int layers = int(round(l));
-
-        for(int i = 0; i < layers; i++) {
-            // Circle Center Location
-            vec2 circleLoc = circle(t,0.25);
-            
-            // Repeat in a grid
-            uv *= (resolution.x/resolution.y) / 2.0;
-            float lf = float(l);
-            uv = fract((uv * -1.753) - (lf * 0.1)) - 0.5;
-            
-            float d = sdCircle(circleLoc,uv,0.5);
-            d *= exp(-sdCircle(circleLoc,uv0,0.1));
-            // Initial Color
-            vec3 col = palette(distance(circle(t,.25),uv0) + t);
-
-            // Rings around the center, move towards center with time
-            d = (0.5*(sin(d*2.*PI/4. + time+float(i)))+1.);
-
-            // Vingette around the edges
-            float v = length(uv);
-            float fade = 1.0 - smoothstep(0.25,0.4,v);
-            col = col * pow(d,1.2) * fade;
-            finalColor += col / float(layers);
-        }
+    // // Signed Distance to a circle
+    // float sdCircle(in vec2 o, in vec2 p, in float r) {
+    //     return distance(o,p) - r;
+    // }
+    //
+    // // My moving circle
+    // vec2 circle(in float t, in float r) {
+    //     float x = r * 10.0 * sin((2.0*PI)+t); 
+    //     float y = r * 4.0 * cos((2.0*PI*2.0)+t);
+    //     return vec2(x,y);
+    // }
+    //
+    // // Shifting color palette
+    // vec3 palette(in float t) {
+    //     vec3 a = vec3(0.5,0.5,0.5);
+    //     vec3 b = vec3(0.5,0.5,0.5);
+    //     vec3 c = vec3(1.0,1.0,1.0);
+    //     vec3 d = vec3(0.268,0.416,0.557);
+    //
+    //     return a + b * cos((2.0*PI)*((c*t)+d));
+    // }
+    //
+    // void main() {
+    //     // Normalized pixel coordinates (from 0 to 1)
+    //     vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / resolution.y;
+    //     vec2 uv0 = uv; // Save orginal origin
+    //
+    //     // How Fast the Circle Moves
+    //     float speed = 0.25;
+    //     float t = time * speed;    
+    //
+    //     // Final Output Color
+    //     vec3 finalColor = vec3(0.0);
+    //
+    //     float l = sdCircle(circle(t,0.25),uv0,0.5);
+    //     l = 2.0 * sin(l*8. + time) + 2.5;
+    //     int layers = int(round(l));
+    //
+    //     for(int i = 0; i < layers; i++) {
+    //         // Circle Center Location
+    //         vec2 circleLoc = circle(t,0.25);
+    //         
+    //         // Repeat in a grid
+    //         uv *= (resolution.x/resolution.y) / 2.0;
+    //         float lf = float(l);
+    //         uv = fract((uv * -1.753) - (lf * 0.1)) - 0.5;
+    //         
+    //         float d = sdCircle(circleLoc,uv,0.5);
+    //         d *= exp(-sdCircle(circleLoc,uv0,0.1));
+    //         // Initial Color
+    //         vec3 col = palette(distance(circle(t,.25),uv0) + t);
+    //
+    //         // Rings around the center, move towards center with time
+    //         d = (0.5*(sin(d*2.*PI/4. + time+float(i)))+1.);
+    //
+    //         // Vingette around the edges
+    //         float v = length(uv);
+    //         float fade = 1.0 - smoothstep(0.25,0.4,v);
+    //         col = col * pow(d,1.2) * fade;
+    //         finalColor += col / float(layers);
+    //     }
 
         // Output to screen
-        fragColor = vec4(finalColor, 1.0);
+        // fragColor = vec4(finalColor, 1.0);
+        void main() {
+        fragColor = vec4(0.5, 0.1, 0.9, 1.0);
     }
 "#;
 
@@ -115,65 +120,22 @@ fn main() -> Result<(), GLError> {
     let vertex_shader = Shader::<Vertex>::new(vertexShaderSource)?;
     let fragment_shader = Shader::<Fragment>::new(fragmentShaderSource)?;
 
+    // Generate Object Data
+    let triangle = Vertex3(vec![-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0]);
+
     // Link Shaders to Program
-    let program = GLProgram::builder()
+    let mut program = GLProgram::builder()
         .attach_vertex_shader(vertex_shader)
         .attach_fragment_shader(fragment_shader)
-        .link_shaders()?
-        .enable_uniform(MagicUniform::TIME) // Will set the float 'time' as a uniform every call
-        .enable_uniform(MagicUniform::RESOLUTION); // Will pass the 'resolution' as a vec2
+        .link_shaders()?;
+    // .enable_uniform(MagicUniform::TIME) // Will set the float 'time' as a uniform every call
+    // .enable_uniform(MagicUniform::RESOLUTION); // Will pass the 'resolution' as a vec2
+
+    program.vao("triangle").attribute("vertices", triangle)?;
 
     let render_queue = vec![program];
 
-    let VAO = unsafe {
-        // set up vertex data (and buffer(s)) and configure vertex attributes
-        // ------------------------------------------------------------------
-        // HINT: type annotation is crucial since default for float literals is f64
-        // let vertices: [f32; 9] = [-1.0, -1.0, 0.0, 3.0, -1.0, 0.0, -1.0, 3.0, 0.0];
-        let vertices: [f32; 9] = [
-            -1.0, -1.0, 0.0, // left
-            3.0, -1.0, 0.0, // right
-            -1.0, 3.0, 0.0, // top
-        ];
-        let (mut VBO, mut VAO) = (0, 0);
-        gl::GenVertexArrays(1, &mut VAO);
-        gl::GenBuffers(1, &mut VBO);
-        // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-        gl::BindVertexArray(VAO);
-
-        gl::BindBuffer(gl::ARRAY_BUFFER, VBO);
-        gl::BufferData(
-            gl::ARRAY_BUFFER,
-            (vertices.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-            &vertices[0] as *const f32 as *const c_void,
-            gl::STATIC_DRAW,
-        );
-
-        gl::VertexAttribPointer(
-            0,
-            3,
-            gl::FLOAT,
-            gl::FALSE,
-            3 * mem::size_of::<GLfloat>() as GLsizei,
-            ptr::null(),
-        );
-        gl::EnableVertexAttribArray(0);
-
-        // note that this is allowed, the call to gl::VertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-        gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-
-        // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-        // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-        gl::BindVertexArray(0);
-
-        VAO
-    };
-
-    // Time
-    // program.set_uniform("resolution", GL2F(1000.0, 1000.0))?;
-
     // render loop
-    let time = SystemTime::now();
     let mut frame_events = FrameEvents {
         // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
         time: glfw.get_time() as f32,
@@ -186,29 +148,12 @@ fn main() -> Result<(), GLError> {
         // Process events, and extract relevant program details
         process_events(&glfw, &mut window, &events, &mut frame_events)?;
 
-        // Update the time elapsed
-        if let Ok(elapsed) = time.elapsed() {
-            frame_events.time = elapsed.as_secs_f32();
-            // program.set_uniform("time", GL1F(elapsed.as_secs_f32() as GLfloat))?;
-        }
-
         // RENDER
         // Flags that are used to set 'magic' uniforms such as 'time' or 'mouse position'or each program, render each VAO
         for program in render_queue.iter() {
             program.draw(&frame_events)?;
         }
-        unsafe {
-            gl::ClearColor(0.2, 0.3, 0.3, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
 
-            // draw our first triangle
-            // gl::UseProgram(program.id());
-            gl::BindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
-            // glBindVertexArray(0); // no need to unbind it every time
-        }
-
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         window.swap_buffers();
         glfw.poll_events();
     }

@@ -7,6 +7,8 @@ pub mod window;
 pub mod program;
 pub use program::GLProgram;
 
+pub mod vao;
+
 // Types and Setting Uniform Values
 pub mod uniform;
 pub mod types {
@@ -20,6 +22,7 @@ pub enum GLError {
     Shader(shader::ShaderError),
     Window(window::WindowError),
     Uniform(uniform::UniformError),
+    VAO(vao::VAOError),
 }
 
 impl std::error::Error for GLError {}
@@ -38,6 +41,9 @@ impl std::fmt::Display for GLError {
             }
             GLError::Uniform(error) => {
                 write!(f, "GL Uniform Assignment Error:\n{}", error.to_string())
+            }
+            GLError::VAO(error) => {
+                write!(f, "GL Attribute Creation Error:\n{}", error.to_string())
             }
         }
     }
