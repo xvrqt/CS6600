@@ -15,6 +15,21 @@ pub mod types {
     pub use crate::uniform::*;
 }
 
+// This is used by GLPrograms to update their magic variables
+pub struct FrameState {
+    pub time: f32,                      // Total time elapsed
+    pub resolution: Option<(f32, f32)>, // Width, Height
+}
+
+pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
+    FrameState {
+        // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
+        time: glfw.get_time() as f32,
+        resolution: None, // Only contains Some() when the screen changes size to avoid sending it
+                          // every frame
+    }
+}
+
 // Our Errors will all roll up into this error type for easy handling
 #[derive(Debug)]
 pub enum GLError {

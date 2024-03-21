@@ -22,13 +22,6 @@ type GLFW = glfw::Glfw;
 type GLWindow = glfw::PWindow;
 type WindowEvents = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
 
-// This struct contains information generated when a window processes events
-// This is used by GLPrograms to update their magic variables, among other things
-pub struct FrameEvents {
-    pub time: f32,              // Total time elapsed
-    pub resolution: (f32, f32), // Width, Height
-}
-
 // Creates and opens a new window, with specified dimensions, API version, and title
 // Returns a handle to the window, and to the window's event loop
 pub fn create<T: AsRef<str>>(

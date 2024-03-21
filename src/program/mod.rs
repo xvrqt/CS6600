@@ -2,14 +2,11 @@
 pub mod error;
 pub use error::ProgramError;
 
+use crate::shader::{Fragment, Shader, Vertex};
 use crate::types::*;
 use crate::uniform::{MagicUniform, Uniform};
-use crate::window::FrameEvents;
-
-use crate::vao::{SetAttributePointer, VAO};
-
-// We need the Shader type to link them to our id
-use crate::shader::{Fragment, Shader, Vertex};
+use crate::vao::VAO;
+use crate::FrameState;
 
 // OpenGL
 use gl::types::*;
@@ -65,18 +62,20 @@ impl GLProgram<'_> {
     }
 
     // Checks which magic uniforms are enabled and then sets them accordingly
-    fn update_magic_uniforms(&self, vars: &FrameEvents) -> Result<(), ProgramError> {
+    fn update_magic_uniforms(&self, vars: &FrameState) -> Result<(), ProgramError> {
         if self.magic_uniforms.contains(MagicUniform::TIME) {
             self.set_uniform("time", GL1F(vars.time))?;
         }
         if self.magic_uniforms.contains(MagicUniform::RESOLUTION) {
-            self.set_uniform("resolution", GL2F(vars.resolution.0, vars.resolution.1))?;
+            if let Some((x, y)) = vars.resolution {
+                self.set_uniform("resolution", GL2F(x, y))?;
+            }
         }
         Ok(())
     }
 
     // Updates the magic uniforms, draws every VAO in order
-    pub fn draw(&self, frame_events: &FrameEvents) -> Result<(), ProgramError> {
+    pub fn draw(&self, frame_events: &FrameState) -> Result<(), ProgramError> {
         self.update_magic_uniforms(&frame_events)?;
         unsafe {
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
