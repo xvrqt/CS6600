@@ -176,7 +176,7 @@ impl Uniform for GL4U {
 /////////////
 // Vectors //
 /////////////
-pub struct GL1FV(pub Vec<f32>);
+pub struct GL1FV(pub Vec<GL1F>);
 impl Uniform for GL1FV {
     fn set(&mut self, location: GLint) -> Result<(), UniformError> {
         self.0.shrink_to_fit();
@@ -194,7 +194,7 @@ impl Uniform for GL1FV {
     }
 }
 
-pub struct GL2FV(pub Vec<(f32, f32)>);
+pub struct GL2FV(pub Vec<GL2F>);
 impl Uniform for GL2FV {
     fn set(&mut self, location: GLint) -> Result<(), UniformError> {
         self.0.shrink_to_fit();
@@ -212,7 +212,7 @@ impl Uniform for GL2FV {
     }
 }
 
-pub struct GL3FV(pub Vec<(f32, f32, f32)>);
+pub struct GL3FV(pub Vec<GL3F>);
 impl Uniform for GL3FV {
     fn set(&mut self, location: GLint) -> Result<(), UniformError> {
         self.0.shrink_to_fit();
@@ -230,7 +230,7 @@ impl Uniform for GL3FV {
     }
 }
 
-pub struct GL4FV(pub Vec<(f32, f32, f32, f32)>);
+pub struct GL4FV(pub Vec<GL4F>);
 impl Uniform for GL4FV {
     fn set(&mut self, location: GLint) -> Result<(), UniformError> {
         self.0.shrink_to_fit();

@@ -78,6 +78,7 @@ impl GLProgram<'_> {
     pub fn draw(&self, frame_events: &FrameState) -> Result<(), ProgramError> {
         self.update_magic_uniforms(&frame_events)?;
         unsafe {
+            gl::UseProgram(self.id);
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
@@ -85,7 +86,6 @@ impl GLProgram<'_> {
             if vao.enabled {
                 unsafe {
                     gl::BindVertexArray(vao.id);
-                    gl::EnableVertexAttribArray(0);
                     gl::DrawArrays(gl::TRIANGLES, 0, 3);
                 }
             }

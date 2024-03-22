@@ -2,8 +2,8 @@
 use cs6600::{
     frame_state,
     shader::{Fragment, Vertex},
+    types::*,
     uniform::MagicUniform,
-    vao::Vertex3,
     window, FrameState, GLError, GLProgram, Shader,
 };
 
@@ -12,8 +12,12 @@ use glfw::{Action, Context, Key};
 const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
     layout (location = 0) in vec3 vertices;
+    layout (location = 1) in vec3 colors;
+
+    out vec3 clrs;
     void main() {
        gl_Position = vec4(vertices.x, vertices.y, vertices.z, 1.0);
+       clrs = colors;
     }
 "#;
 
@@ -24,6 +28,7 @@ const FRAGMENT_SHADER_SOURCE: &str = r#"
     uniform float time;
     uniform vec2 resolution;
 
+    in vec3 clrs;
     in vec4 gl_FragCoord;
     out vec4 fragColor;
 
@@ -90,15 +95,13 @@ const FRAGMENT_SHADER_SOURCE: &str = r#"
         }
 
         // Output to screen
+        finalColor += clrs * 0.5;
         fragColor = vec4(finalColor, 1.0);
-        // void main() {
-        // fragColor = vec4(0.5, 0.1, 0.9, 1.0);
     }
 "#;
 
 #[allow(non_snake_case)]
 fn main() -> Result<(), GLError> {
-    // std::env::set_var("RUST_BACKTRACE", "1");
     // GLFW lib handle, window handle, and event loop for that window handle
     let (mut glfw, mut window, events) = window::create_default()?;
 
@@ -118,8 +121,23 @@ fn main() -> Result<(), GLError> {
         .enable_uniform(MagicUniform::RESOLUTION); // Will pass the 'resolution' as a vec2
 
     // Generate Object Data
-    let triangle = Vertex3(vec![-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0]);
-    program.vao("triangle").attribute("vertices", triangle)?;
+    let triangle = GL3FV(vec![
+        GL3F(-0.5, -0.5, 0.0),
+        GL3F(0.5, -0.5, 0.0),
+        GL3F(0.0, 0.5, 0.0),
+    ]);
+
+    let colors = GL3FV(vec![
+        GL3F(1.0, 0.0, 0.0),
+        GL3F(0.0, 1.0, 0.0),
+        GL3F(0.0, 0.0, 1.0),
+    ]);
+
+    // Create a new object, and attach some data to it
+    program
+        .vao("triangle")
+        .attribute("vertices", triangle)?
+        .attribute("colors", colors)?;
 
     // In case we have more than one program, render all of them
     let render_queue = vec![program];

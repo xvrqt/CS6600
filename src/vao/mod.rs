@@ -2,39 +2,28 @@ pub mod error;
 pub use error::VAOError;
 use gl::types::*;
 use std::collections::hash_map::Entry;
+use std::ptr;
 use std::{collections::HashMap, vec::Vec};
 
-pub struct Vertex3(pub Vec<f32>);
-pub trait SetAttributePointer {
-    fn set_attribute_pointer(&mut self) -> Result<(), VAOError>;
-}
-impl SetAttributePointer for Vertex3 {
-    fn set_attribute_pointer(&mut self) -> Result<(), VAOError> {
-        self.0.shrink_to_fit();
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| VAOError::VectorLength)?;
+use crate::uniform::GL3F;
+use crate::uniform::GL3FV;
 
+pub struct GLAV3(pub Vec<GL3F>);
+pub trait SetAttributePointer {
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<(), VAOError>;
+}
+impl SetAttributePointer for GL3FV {
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<(), VAOError> {
+        self.0.shrink_to_fit();
         // Pointer to the vector's buffer
         let ptr = self.0.as_ptr() as *const std::ffi::c_void;
+        let size = (self.0.len() * std::mem::size_of::<GL3F>()) as GLsizeiptr;
+        let element_size = (std::mem::size_of::<GL3F>()) as GLsizei;
         unsafe {
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
-                (self.0.len() * std::mem::size_of::<GLfloat>()) as GLsizeiptr,
-                &self.0[0] as *const f32 as *const std::ffi::c_void,
-                gl::STATIC_DRAW,
-            );
-
-            gl::VertexAttribPointer(
-                0,
-                3,
-                gl::FLOAT,
-                gl::FALSE,
-                3 * std::mem::size_of::<GLfloat>() as GLsizei,
-                std::ptr::null(),
-            );
+            // Send the data to the GPU
+            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
+            // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
+            gl::VertexAttribPointer(id, 3, gl::FLOAT, gl::FALSE, element_size, ptr::null());
         }
         Ok(())
     }
@@ -58,9 +47,6 @@ impl Attribute {
         let id;
         let buffer;
         unsafe {
-            // Get the ID of the currently running program
-            // let program_id = get_program_id()?;
-
             // Get the handle to where the attribute is located in the shader
             let name = std::ffi::CString::new(name.as_ref().as_bytes())
                 .map_err(|_| VAOError::CStringConversion)?;
@@ -89,17 +75,6 @@ impl Attribute {
     }
 }
 
-fn get_program_id() -> Result<GLuint, VAOError> {
-    unsafe {
-        // Get the ID of the currently running program
-        let mut program_id = 1;
-        gl::GetIntegerv(gl::CURRENT_PROGRAM, &mut program_id);
-        program_id
-            .try_into()
-            .map_err(|_| VAOError::FailedToGetActiveProgram)
-    }
-}
-
 #[derive(Debug)]
 pub struct VAO {
     // GL ID of this VAO, and the name of this VAO
@@ -107,7 +82,7 @@ pub struct VAO {
     pub program_id: GLuint,
     pub enabled: bool,
     // List of named attributes and their GL IDs
-    attributes: HashMap<String, Attribute>,
+    pub attributes: HashMap<String, Attribute>,
 }
 
 impl VAO {
@@ -144,10 +119,11 @@ impl VAO {
             gl::UseProgram(self.program_id);
             gl::BindVertexArray(self.id);
             gl::BindBuffer(gl::ARRAY_BUFFER, attribute.buffer);
-            buffer.set_attribute_pointer()?;
-            gl::EnableVertexAttribArray(self.id);
-            // gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-            // gl::BindVertexArray(0);
+            gl::EnableVertexAttribArray(attribute.id);
+            buffer.set_attribute_pointer(attribute.id)?;
+            // Unbind Targets
+            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+            gl::BindVertexArray(0);
         }
 
         Ok(self)
