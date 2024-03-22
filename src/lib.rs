@@ -1,17 +1,22 @@
+// Window Creation + Control
 use glfw::{Action, Key};
-// Compiling shaders into OpenGL programs
-pub mod shader;
-pub use shader::Shader;
+// Linear Algebra Crate
+use ultraviolet;
+use ultraviolet::projection::rh_yup::perspective_gl;
+
 // Opening a window with an OpenGL conteext
 pub mod window;
 // Linking shaders to crete a GL Program
 pub mod program;
 pub use program::GLProgram;
-
+// Compiling shaders into OpenGL programs
+pub mod shader;
+pub use shader::Shader;
+// Creating and managing Vertex Array Objects
 pub mod vao;
-
 // Types and Setting Uniform Values
 pub mod uniform;
+// Re-export for more ergnomic use
 pub mod types {
     pub use crate::uniform::*;
 }
@@ -20,6 +25,7 @@ pub mod types {
 pub struct FrameState {
     pub time: f32,                      // Total time elapsed
     pub resolution: Option<(f32, f32)>, // Width, Height
+    pub perspective_matrix: ultraviolet::mat::Mat4,
 }
 
 pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
@@ -27,7 +33,8 @@ pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
         // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
         time: glfw.get_time() as f32,
         resolution: None, // Only contains Some() when the screen changes size to avoid sending it
-                          // every frame
+        // every frame
+        perspective_matrix: perspective_gl(3.1415 / 6.0, 1.0, 1.0, -1.0),
     }
 }
 
@@ -43,6 +50,8 @@ pub fn process_events(
             // Update Viewport, and Resolution Shader Uniform
             glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
                 frame_state.resolution = Some((width as f32, height as f32));
+                let aspect_ratio = width as f32 / height as f32;
+                frame_state.perspective_matrix = perspective_gl(1.0, aspect_ratio, 0.1, 100.0);
                 gl::Viewport(0, 0, width, height)
             },
             glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {

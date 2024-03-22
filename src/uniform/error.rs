@@ -1,4 +1,4 @@
-// Error type for Shaders
+// Error type for Uniforms
 #[derive(Debug)]
 pub enum UniformError {
     VectorLength,
@@ -6,7 +6,6 @@ pub enum UniformError {
 }
 
 impl std::error::Error for UniformError {}
-
 impl std::fmt::Display for UniformError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {

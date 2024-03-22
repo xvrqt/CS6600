@@ -1,10 +1,17 @@
+// Custom Error Type
 pub mod error;
 pub use error::UniformError;
 
+// OpenGL Types
 use gl::types::*;
-
-use bitflags::bitflags;
+// Used for defining arrays of floats, vectors, and matrices
 use std::vec::Vec;
+
+// Used for 'MagicUniform' values to easily set and test for
+use bitflags::bitflags;
+// Linear Algebra Crate -> Defining the Uniform and From<> traits on its types
+// TODO: These intermediate types should be abandoned for ultraviolet's types
+use ultraviolet;
 
 // Flags that are used to set 'magic' uniforms such as 'time' or 'mouse position'
 // During the render loop, the program will check which flags are set
@@ -21,6 +28,16 @@ bitflags! {
 // Uniform Types
 pub trait Uniform {
     fn set(&mut self, location: GLint) -> Result<(), UniformError>;
+}
+
+impl Uniform for ultraviolet::mat::Mat4 {
+    fn set(&mut self, location: GLint) -> Result<(), UniformError> {
+        let ptr = self.cols.as_ptr() as *const GLfloat;
+        unsafe {
+            gl::UniformMatrix4fv(location, 1, gl::FALSE, ptr);
+        }
+        Ok(())
+    }
 }
 
 // Values
@@ -409,15 +426,10 @@ pub struct GL3FM(
 impl Uniform for GL3FM {
     fn set(&mut self, location: GLint) -> Result<(), UniformError> {
         self.0.shrink_to_fit();
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
         // Pointer to the vector's buffer
         let ptr = self.0.as_ptr() as *const GLfloat;
         unsafe {
-            gl::UniformMatrix3fv(location, count, gl::FALSE, ptr);
+            gl::UniformMatrix3fv(location, 1, gl::FALSE, ptr);
         }
         Ok(())
     }
@@ -451,6 +463,7 @@ impl TryFrom<Vec<f32>> for GL3FM {
 }
 
 // 4x4 Matrix of Floats
+// TODO: This should be abandoned for ultraviolet's types tbh
 pub struct GL4FM(
     pub  Vec<(
         GLfloat,
@@ -474,15 +487,10 @@ pub struct GL4FM(
 impl Uniform for GL4FM {
     fn set(&mut self, location: GLint) -> Result<(), UniformError> {
         self.0.shrink_to_fit();
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
         // Pointer to the vector's buffer
         let ptr = self.0.as_ptr() as *const GLfloat;
         unsafe {
-            gl::UniformMatrix4fv(location, count, gl::FALSE, ptr);
+            gl::UniformMatrix4fv(location, 1, gl::FALSE, ptr);
         }
         Ok(())
     }

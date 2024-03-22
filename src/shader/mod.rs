@@ -10,12 +10,11 @@ use std::ptr;
 use std::str;
 
 // Private Shader internals
+#[allow(dead_code)]
 mod opaque {
     #[derive(Debug)]
     pub(crate) struct Shader_<'a> {
         pub(crate) id: gl::types::GLuint,
-        // If we have a 'static str as our shader code (likely during rapid development)
-        // Then we skip an allocation
         pub(crate) source: std::borrow::Cow<'a, str>,
     }
 }
@@ -24,6 +23,7 @@ mod opaque {
 // pipeline they operate on. Making them an Enum also provides easy matching,
 // and prevents accidentally assigning a Geometry Shader to the Vertex Shader
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Shader<'a, Type> {
     pub(crate) id: gl::types::GLuint,
     // If we have a 'static str as our shader code (likely during rapid development)
@@ -32,21 +32,17 @@ pub struct Shader<'a, Type> {
     _pd: std::marker::PhantomData<Type>,
 }
 
-impl<'a, Type> Shader<'a, Type> {
-    pub fn id(&self) -> GLuint {
-        self.id
-    }
-}
-
+// When we're done with the shader, let OpenGL know it can clean it up
 impl<'a, Type> Drop for Shader<'a, Type> {
     // Tell OpenGL we don't need the shader around anymore
     fn drop(&mut self) -> () {
         unsafe {
-            gl::DeleteShader(self.id());
+            gl::DeleteShader(self.id);
         }
     }
 }
 
+// Different types of shaders. Vertex, Fragment are mandatory
 impl<'a> Shader<'a, Vertex> {
     pub fn new(source: &'a str) -> Result<Shader<Vertex>, ShaderError> {
         new_shader::<Vertex>(source)

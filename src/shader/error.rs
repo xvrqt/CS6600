@@ -1,5 +1,3 @@
-use std::fmt;
-
 // Error type for Shaders
 #[derive(Debug)]
 pub enum ShaderError {
@@ -9,9 +7,8 @@ pub enum ShaderError {
 }
 
 impl std::error::Error for ShaderError {}
-
-impl fmt::Display for ShaderError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for ShaderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ShaderError::SourceParse => {
                 write!(f, "Failed to convert the shader's source into a c-string.")

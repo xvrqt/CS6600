@@ -2,18 +2,26 @@
 pub mod error;
 pub use error::ProgramError;
 
+// Programs must attach at least a Vertex and Fragment Shader
 use crate::shader::{Fragment, Shader, Vertex};
+// Convenient use of special types that work well with OpenGL
 use crate::types::*;
+// Create and set uniform shader values
 use crate::uniform::{MagicUniform, Uniform};
+// Create and manager OpenGL Vertex Attribute Objects
 use crate::vao::VAO;
+// Special per frame values used in the draw() call
 use crate::FrameState;
 
-// OpenGL
+// OpenGL Types
 use gl::types::*;
 
+// Used to track Vertex Array Objects
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+// Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
+// Used to create error logs
 use std::vec::Vec;
 
 // Semantic OpenGL Program
@@ -21,6 +29,7 @@ use std::vec::Vec;
 #[allow(dead_code)]
 pub struct GLProgram<'a> {
     id: u32, // OpenGL keeps track of programs with integer IDs
+    // We never read these again, but I can imagine a future where we would want to
     vertex_shader: Shader<'a, Vertex>,
     fragment_shader: Shader<'a, Fragment>,
     // List of uniforms we update automagically for the caller
@@ -29,113 +38,7 @@ pub struct GLProgram<'a> {
     vaos: HashMap<String, VAO>,
 }
 
-impl GLProgram<'_> {
-    // Create a new OpenGL Program
-    pub fn builder() -> GLProgramBuilder<NoVS, NoFS> {
-        let id;
-        unsafe {
-            id = gl::CreateProgram();
-        }
-        GLProgramBuilder {
-            id,
-            vertex_shader: NoVS,
-            fragment_shader: NoFS,
-        }
-    }
-
-    // Create a new, or edit an existing, VAO
-    pub fn vao<S>(&mut self, name: S) -> &mut VAO
-    where
-        S: AsRef<str>,
-    {
-        // Return existing, or create a new VAO
-        match self.vaos.entry(name.as_ref().to_string()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(VAO::new(self.id)),
-        }
-    }
-
-    // Enables a magic uniform value
-    pub fn enable_uniform(mut self, uniform: MagicUniform) -> Self {
-        self.magic_uniforms = self.magic_uniforms | uniform;
-        self
-    }
-
-    // Checks which magic uniforms are enabled and then sets them accordingly
-    fn update_magic_uniforms(&self, vars: &FrameState) -> Result<(), ProgramError> {
-        if self.magic_uniforms.contains(MagicUniform::TIME) {
-            self.set_uniform("time", GL1F(vars.time))?;
-        }
-        if self.magic_uniforms.contains(MagicUniform::RESOLUTION) {
-            if let Some((x, y)) = vars.resolution {
-                self.set_uniform("resolution", GL2F(x, y))?;
-            }
-        }
-        Ok(())
-    }
-
-    // Updates the magic uniforms, draws every VAO in order
-    pub fn draw(&self, frame_events: &FrameState) -> Result<(), ProgramError> {
-        self.update_magic_uniforms(&frame_events)?;
-        unsafe {
-            gl::UseProgram(self.id);
-            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
-        for vao in self.vaos.values() {
-            if vao.enabled {
-                unsafe {
-                    gl::BindVertexArray(vao.id);
-                    gl::DrawArrays(vao.draw_style, 0, vao.draw_count);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    // Sets a uniform variable at the location
-    pub fn set_uniform<S, Type>(&self, name: S, mut value: Type) -> Result<(), ProgramError>
-    where
-        S: AsRef<str>,
-        Type: Uniform,
-    {
-        unsafe {
-            gl::UseProgram(self.id);
-        }
-        let location = self.get_uniform_location(name)?;
-        value
-            .set(location)
-            .map_err(|e| ProgramError::SettingUniformValue(e.to_string()))?;
-
-        Ok(())
-    }
-
-    // Convenience
-    fn get_uniform_location<S>(&self, name: S) -> Result<GLint, ProgramError>
-    where
-        S: AsRef<str>,
-    {
-        let c_name = CString::new(name.as_ref().as_bytes()).map_err(|_| {
-            ProgramError::SettingUniformValue(
-                "Could not create CString from the uniform's location name.".to_string(),
-            )
-        })?;
-        let location;
-        unsafe {
-            location = gl::GetUniformLocation(self.id, c_name.into_raw());
-        }
-        match location {
-            -1 => Err(ProgramError::GetUniformLocation(name.as_ref().into())),
-            _ => Ok(location),
-        }
-    }
-
-    // Returns the OpenGL ID of the id
-    pub fn id(&self) -> GLuint {
-        self.id
-    }
-}
-
+// Used to create a GLProgram
 // Using a typesetting builder pattern to create valid OpenGL Programs
 pub struct GLProgramBuilder<V, F> {
     id: GLuint,
@@ -151,7 +54,7 @@ pub struct NoFS;
 // If we haven't attached a Vertex Shader provide a method to attach one
 impl<F> GLProgramBuilder<NoVS, F> {
     pub fn attach_vertex_shader(self, vs: Shader<Vertex>) -> GLProgramBuilder<Shader<Vertex>, F> {
-        unsafe { gl::AttachShader(self.id, vs.id()) }
+        unsafe { gl::AttachShader(self.id, vs.id) }
         let Self {
             id,
             fragment_shader,
@@ -171,7 +74,7 @@ impl<V> GLProgramBuilder<V, NoFS> {
         self,
         fs: Shader<Fragment>,
     ) -> GLProgramBuilder<V, Shader<Fragment>> {
-        unsafe { gl::AttachShader(self.id, fs.id()) }
+        unsafe { gl::AttachShader(self.id, fs.id) }
         let Self {
             id, vertex_shader, ..
         } = self;
@@ -232,5 +135,109 @@ impl<'a> GLProgramBuilder<Shader<'a, Vertex>, Shader<'a, Fragment>> {
             magic_uniforms: MagicUniform::NONE,
             vaos: HashMap::new(),
         })
+    }
+}
+
+impl GLProgram<'_> {
+    // Create a new OpenGL Program
+    pub fn builder() -> GLProgramBuilder<NoVS, NoFS> {
+        let id;
+        unsafe {
+            id = gl::CreateProgram();
+        }
+        GLProgramBuilder {
+            id,
+            vertex_shader: NoVS,
+            fragment_shader: NoFS,
+        }
+    }
+
+    // Create a new, or edit an existing, VAO
+    pub fn vao<S>(&mut self, name: S) -> &mut VAO
+    where
+        S: AsRef<str>,
+    {
+        // Return existing, or create a new VAO
+        match self.vaos.entry(name.as_ref().to_string()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(VAO::new(self.id)),
+        }
+    }
+
+    // Enables a magic uniform value
+    pub fn enable_uniform(mut self, uniform: MagicUniform) -> Self {
+        self.magic_uniforms = self.magic_uniforms | uniform;
+        self
+    }
+
+    // Checks which magic uniforms are enabled and then sets them accordingly
+    fn update_magic_uniforms(&self, vars: &FrameState) -> Result<(), ProgramError> {
+        if self.magic_uniforms.contains(MagicUniform::TIME) {
+            self.set_uniform("time", GL1F(vars.time))?;
+        }
+        if self.magic_uniforms.contains(MagicUniform::RESOLUTION) {
+            if let Some((x, y)) = vars.resolution {
+                self.set_uniform("resolution", GL2F(x, y))?;
+            }
+        }
+        Ok(())
+    }
+
+    // Sets a uniform variable at the location
+    pub fn set_uniform<S, Type>(&self, name: S, mut value: Type) -> Result<(), ProgramError>
+    where
+        S: AsRef<str>,
+        Type: Uniform,
+    {
+        unsafe {
+            gl::UseProgram(self.id);
+        }
+        let location = self.get_uniform_location(name)?;
+        value
+            .set(location)
+            .map_err(|e| ProgramError::SettingUniformValue(e.to_string()))?;
+
+        Ok(())
+    }
+
+    // Convenience function to look up uniform locatoin
+    fn get_uniform_location<S>(&self, name: S) -> Result<GLint, ProgramError>
+    where
+        S: AsRef<str>,
+    {
+        let c_name = CString::new(name.as_ref().as_bytes()).map_err(|_| {
+            ProgramError::SettingUniformValue(
+                "Could not create CString from the uniform's location name.".to_string(),
+            )
+        })?;
+        let location;
+        unsafe {
+            location = gl::GetUniformLocation(self.id, c_name.into_raw());
+        }
+        match location {
+            -1 => Err(ProgramError::GetUniformLocation(name.as_ref().into())),
+            _ => Ok(location),
+        }
+    }
+
+    // Updates the magic uniforms, draws every VAO in order
+    pub fn draw(&self, frame_events: &FrameState) -> Result<(), ProgramError> {
+        self.update_magic_uniforms(&frame_events)?;
+        unsafe {
+            gl::UseProgram(self.id);
+            gl::BlendFunc(1, 1);
+            gl::Enable(::gl::BLEND);
+            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+        for vao in self.vaos.values() {
+            if vao.enabled {
+                unsafe {
+                    gl::BindVertexArray(vao.id);
+                    gl::DrawArrays(vao.draw_style, 0, vao.draw_count);
+                }
+            }
+        }
+        Ok(())
     }
 }

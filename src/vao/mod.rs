@@ -1,13 +1,21 @@
+// Custom Error Type
 pub mod error;
 pub use error::VAOError;
-use gl::types::*;
-use std::collections::hash_map::Entry;
-use std::ptr;
-use std::{collections::HashMap, vec::Vec};
-
+// Types we defing "SetAttributePointer"
+// TODO: Implement for all types, including ultraviolet types
 use crate::uniform::GL3F;
 use crate::uniform::GL3FV;
 
+// OpenGL Types
+use gl::types::*;
+
+// Used to map Attributes to their identifiers in shader GLSL code
+use std::collections::hash_map::Entry;
+use std::{collections::HashMap, vec::Vec};
+// Used for casting into the OpenGL library
+use std::ptr;
+
+// Arrays of Vec3<f32>'s 'know' how to set up their attribute pointers
 pub struct GLAV3(pub Vec<GL3F>);
 pub trait SetAttributePointer {
     fn set_attribute_pointer(&mut self, id: GLuint) -> Result<GLint, VAOError>;
@@ -29,6 +37,7 @@ impl SetAttributePointer for GL3FV {
     }
 }
 
+// OpenGL attribute handle and corresponding buffer handle
 #[derive(Debug)]
 pub struct Attribute {
     // Handle to the attribute location in the shader
@@ -49,7 +58,7 @@ impl Attribute {
         unsafe {
             // Get the handle to where the attribute is located in the shader
             let name = std::ffi::CString::new(name.as_ref().as_bytes())
-                .map_err(|_| VAOError::CStringConversion)?;
+                .map_err(|_| VAOError::CStringConversion(name.as_ref().to_string()))?;
             let attribute_location = gl::GetAttribLocation(program_id, name.as_ptr());
             if attribute_location < 0 {
                 return Err(VAOError::CouldNotFindLocation(
@@ -69,12 +78,10 @@ impl Attribute {
         }
         Ok(Attribute { id, buffer })
     }
-
-    pub fn set_attribute_pointer(&self) -> Result<(), VAOError> {
-        Ok(())
-    }
 }
 
+// Represents an OpenGL Vertex Array Object - provides a handle to the VAO
+// and allows attaching attributes to it
 #[derive(Debug)]
 pub struct VAO {
     // GL ID of this VAO, and the name of this VAO
@@ -112,6 +119,8 @@ impl VAO {
         }
     }
 
+    // Attaches a buffer to a named attribute location in the shader code, and informs
+    // OpenGL how to pull from it.
     pub fn attribute<S, B>(&mut self, name: S, mut buffer: B) -> Result<&mut VAO, VAOError>
     where
         S: AsRef<str>,
@@ -122,12 +131,16 @@ impl VAO {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(Attribute::new(self.program_id, name)?),
         };
+
         unsafe {
             gl::UseProgram(self.program_id);
             gl::BindVertexArray(self.id);
             gl::BindBuffer(gl::ARRAY_BUFFER, attribute.buffer);
             gl::EnableVertexAttribArray(attribute.id);
+
+            // Sets up how to pull from the buffer, and how many times to pull from the buffer
             self.draw_count = buffer.set_attribute_pointer(attribute.id)?;
+
             // Unbind Targets
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);

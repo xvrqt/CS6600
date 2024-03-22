@@ -1,17 +1,16 @@
-// Error type for Shaders
+// Error type for Vertex Array Objects
 #[derive(Debug)]
 pub enum VAOError {
     VectorLength,
     SetAttributePointer,
     AttributeAlreadyExists(String),
     FailedToGetActiveProgram,
-    CStringConversion,
+    CStringConversion(String),
     FailedIDConversion,
     CouldNotFindLocation(String),
 }
 
 impl std::error::Error for VAOError {}
-
 impl std::fmt::Display for VAOError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -21,8 +20,8 @@ impl std::fmt::Display for VAOError {
                     "Failed to convert length of uniform vector from 'usize' to 'GLsizei'.",
                 )
             }
-            VAOError::CStringConversion => {
-                write!(f, "Could not convert string to c string",)
+            VAOError::CStringConversion(name) => {
+                write!(f, "Could not convert string: '{}' to c string", name,)
             }
             VAOError::FailedIDConversion => {
                 write!(f, "Could not convert IDs from GLint to GLuint",)
@@ -51,6 +50,7 @@ impl From<VAOError> for crate::GLError {
 }
 
 // Allows for painless casting into our crate's rollup error
+// VAOs only exist in the context of Programs
 impl From<VAOError> for crate::program::ProgramError {
     fn from(error: VAOError) -> Self {
         crate::program::ProgramError::VAO(error)

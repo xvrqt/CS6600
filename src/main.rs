@@ -1,22 +1,35 @@
 // My Libs
 use cs6600::{
-    frame_state, process_events,
+    // Extracts useful variables from the window + event state each frame
+    process_events,
+    // For loading shaders of these types
     shader::{Fragment, Vertex},
+    // Shortcut to use my uniform and attribute types
     types::*,
+    // Used to enable the automagical setting of common uniform variable
     uniform::MagicUniform,
-    window, FrameState, GLError, GLProgram, Shader,
+    // Window, main() error type, OpenGL programs, and Shaders
+    window,
+    GLError,
+    GLProgram,
+    Shader,
 };
 
-use glfw::{Action, Context, Key};
+// Window Creation + Control
+use glfw::Context;
+// Linear Algebra Crate
+use ultraviolet;
 
 const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
     layout (location = 0) in vec3 vertices;
     layout (location = 1) in vec3 colors;
 
+    uniform mat4 mvp;
+
     out vec3 clrs;
     void main() {
-       gl_Position = vec4(vertices.x, vertices.y, vertices.z, 1.0);
+       gl_Position = mvp * vec4(vertices.x, vertices.y, vertices.z, 1.0);
        clrs = colors;
     }
 "#;
@@ -96,7 +109,7 @@ const FRAGMENT_SHADER_SOURCE: &str = r#"
 
         // Output to screen
         finalColor += clrs * 0.5;
-        fragColor = vec4(finalColor, 1.0);
+        fragColor = vec4(finalColor, 0.33);
     }
 "#;
 
@@ -125,12 +138,24 @@ fn main() -> Result<(), GLError> {
         GL3F(-0.5, -0.5, 0.0),
         GL3F(0.5, -0.5, 0.0),
         GL3F(0.0, 0.5, 0.0),
+        GL3F(-0.5, -0.5, 0.5),
+        GL3F(0.5, -0.5, 0.5),
+        GL3F(0.0, 0.5, 0.5),
+        GL3F(-0.5, -0.5, -0.5),
+        GL3F(0.5, -0.5, -0.5),
+        GL3F(0.0, 0.5, -0.5),
     ]);
 
     let colors = GL3FV(vec![
         GL3F(1.0, 0.0, 0.0),
         GL3F(0.0, 1.0, 0.0),
         GL3F(0.0, 0.0, 1.0),
+        GL3F(0.0, 0.0, 1.0),
+        GL3F(1.0, 0.0, 0.0),
+        GL3F(0.0, 1.0, 0.0),
+        GL3F(0.0, 1.0, 0.0),
+        GL3F(0.0, 0.0, 1.0),
+        GL3F(1.0, 0.0, 0.0),
     ]);
 
     // Create a new object, and attach some data to it
@@ -145,8 +170,19 @@ fn main() -> Result<(), GLError> {
         // Process events, and extract relevant program details
         let frame_state = process_events(&glfw, &mut window, &events)?;
 
+        // Generate perspective transform
+        // Rotate the objects alond the X-Z Plane
+        let rotation = ultraviolet::mat::Mat4::from_rotation_y(frame_state.time);
+        // Pull the camera back a bit
+        let camera =
+            ultraviolet::mat::Mat4::from_translation(ultraviolet::vec::Vec3::new(0.0, 0.0, -5.0));
+        // Modify for perspective
+        let perspective = frame_state.perspective_matrix;
+        let mvp = perspective * camera * rotation;
+
         // RENDER
         for program in render_queue.iter() {
+            program.set_uniform("mvp", mvp)?;
             program.draw(&frame_state)?;
         }
 

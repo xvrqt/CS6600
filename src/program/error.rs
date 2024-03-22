@@ -1,6 +1,6 @@
 use crate::shader::error::ShaderError;
 use crate::vao::VAOError;
-use gl::types::*;
+
 // Error for GLProgram
 #[derive(Debug)]
 pub enum ProgramError {
