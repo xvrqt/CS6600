@@ -12,6 +12,8 @@ pub use program::GLProgram;
 // Compiling shaders into OpenGL programs
 pub mod shader;
 pub use shader::Shader;
+// Loading shader, object, texture files
+pub mod load;
 // Creating and managing Vertex Array Objects
 pub mod vao;
 // Types and Setting Uniform Values
@@ -71,6 +73,7 @@ pub enum GLError {
     Window(window::WindowError),
     Uniform(uniform::UniformError),
     VAO(vao::VAOError),
+    Load(load::LoadError),
 }
 
 impl std::error::Error for GLError {}
@@ -91,6 +94,9 @@ impl std::fmt::Display for GLError {
             }
             GLError::VAO(error) => {
                 write!(f, "GL Attribute Creation Error:\n{}", error.to_string())
+            }
+            GLError::Load(error) => {
+                write!(f, "GL Program File Loading Error:\n{}", error.to_string())
             }
         }
     }

@@ -1,177 +1,194 @@
+// My Libs
+use cs6600::{
+    // Extracts useful variables from the window + event state each frame
+    process_events,
+    // For loading shaders of these types
+    shader::{Fragment, Vertex},
+    // Shortcut to use my uniform and attribute types
+    types::*,
+    // Used to enable the automagical setting of common uniform variable
+    uniform::MagicUniform,
+    // Window, main() error type, OpenGL programs, and Shaders
+    window,
+    GLError,
+    GLProgram,
+    Shader,
+};
 
-#![allow(non_upper_case_globals)]
-use glfw::{Context, Key, Action};
-use gl::types::*;
+// Window Creation + Control
+use glfw::Context;
+// Linear Algebra Crate
+use ultraviolet;
 
-use std::sync::mpsc::Receiver;
-use std::ffi::CString;
-use std::ptr;
-use std::str;
-use std::mem;
-use std::os::raw::c_void;
+const VERTEX_SHADER_SOURCE: &str = r#"
+    #version 460 core
+    layout (location = 0) in vec3 vertices;
+    layout (location = 1) in vec3 colors;
 
-// settings
-const SCR_WIDTH: u32 = 800;
-const SCR_HEIGHT: u32 = 600;
+    uniform mat4 mvp;
 
-const vertexShaderSource: &str = r#"
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
+    out vec3 clrs;
     void main() {
-       gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
+       gl_Position = mvp * vec4(vertices.x, vertices.y, vertices.z, 1.0);
+       clrs = colors;
     }
 "#;
 
-const fragmentShaderSource: &str = r#"
-    #version 330 core
-    out vec4 FragColor;
+const FRAGMENT_SHADER_SOURCE: &str = r#"
+    #version 460 core
+    #define PI 3.141592653
+
+    uniform float time;
+    uniform vec2 resolution;
+
+    in vec3 clrs;
+    in vec4 gl_FragCoord;
+    out vec4 fragColor;
+
+    // Signed Distance to a circle
+    float sdCircle(in vec2 o, in vec2 p, in float r) {
+        return distance(o,p) - r;
+    }
+
+    // My moving circle
+    vec2 circle(in float t, in float r) {
+        float x = r * 10.0 * sin((2.0*PI)+t); 
+        float y = r * 4.0 * cos((2.0*PI*2.0)+t);
+        return vec2(x,y);
+    }
+
+    // Shifting color palette
+    vec3 palette(in float t) {
+        vec3 a = vec3(0.5,0.5,0.5);
+        vec3 b = vec3(0.5,0.5,0.5);
+        vec3 c = vec3(1.0,1.0,1.0);
+        vec3 d = vec3(0.268,0.416,0.557);
+
+        return a + b * cos((2.0*PI)*((c*t)+d));
+    }
+
     void main() {
-       FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+        // Normalized pixel coordinates (from 0 to 1)
+        vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / resolution.y;
+        vec2 uv0 = uv; // Save orginal origin
+
+        // How Fast the Circle Moves
+        float speed = 0.25;
+        float t = time * speed;    
+
+        // Final Output Color
+        vec3 finalColor = vec3(0.0);
+
+        float l = sdCircle(circle(t,0.25),uv0,0.5);
+        l = 2.0 * sin(l*8. + time) + 2.5;
+        int layers = int(round(l));
+
+        for(int i = 0; i < layers; i++) {
+            // Circle Center Location
+            vec2 circleLoc = circle(t,0.25);
+            
+            // Repeat in a grid
+            uv *= (resolution.x/resolution.y) / 2.0;
+            float lf = float(l);
+            uv = fract((uv * -1.753) - (lf * 0.1)) - 0.5;
+            
+            float d = sdCircle(circleLoc,uv,0.5);
+            d *= exp(-sdCircle(circleLoc,uv0,0.1));
+            // Initial Color
+            vec3 col = palette(distance(circle(t,.25),uv0) + t);
+
+            // Rings around the center, move towards center with time
+            d = (0.5*(sin(d*2.*PI/4. + time+float(i)))+1.);
+
+            // Vingette around the edges
+            float v = length(uv);
+            float fade = 1.0 - smoothstep(0.25,0.4,v);
+            col = col * pow(d,1.2) * fade;
+            finalColor += col / float(layers);
+        }
+
+        // Output to screen
+        finalColor += clrs * 0.5;
+        fragColor = vec4(finalColor, 0.33);
     }
 "#;
 
 #[allow(non_snake_case)]
-fn main() {
-    // glfw: initialize and configure
-    // ------------------------------
-    let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
-    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-    glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
-    #[cfg(target_os = "macos")]
-    glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+fn main() -> Result<(), GLError> {
+    // GLFW lib handle, window handle, and event loop for that window handle
+    let (mut glfw, mut window, events) = window::create_default()?;
 
-    // glfw window creation
-    // --------------------
-    let (mut window, events) = glfw.create_window(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", glfw::WindowMode::Windowed)
-        .expect("Failed to create GLFW window");
-
-    window.make_current();
-    window.set_key_polling(true);
-    window.set_framebuffer_size_polling(true);
-
-    // gl: load all OpenGL function pointers
-    // ---------------------------------------
+    // Load function pointers from the user's linked OpenGL library
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
-    let (shaderProgram, VAO) = unsafe {
-        // build and compile our shader program
-        // ------------------------------------
-        // vertex shader
-        let vertexShader = gl::CreateShader(gl::VERTEX_SHADER);
-        let c_str_vert = CString::new(vertexShaderSource.as_bytes()).unwrap();
-        gl::ShaderSource(vertexShader, 1, &c_str_vert.as_ptr(), ptr::null());
-        gl::CompileShader(vertexShader);
+    // Compile Shaders
+    let vertex_shader = Shader::<Vertex>::new(VERTEX_SHADER_SOURCE)?;
+    let fragment_shader = Shader::<Fragment>::new(FRAGMENT_SHADER_SOURCE)?;
 
-        // check for shader compile errors
-        let mut success = gl::FALSE as GLint;
-        let mut infoLog = Vec::with_capacity(512);
-        infoLog.set_len(512 - 1); // subtract 1 to skip the trailing null character
-        gl::GetShaderiv(vertexShader, gl::COMPILE_STATUS, &mut success);
-        if success != gl::TRUE as GLint {
-            gl::GetShaderInfoLog(vertexShader, 512, ptr::null_mut(), infoLog.as_mut_ptr() as *mut GLchar);
-            println!("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n{}", str::from_utf8(&infoLog).unwrap());
-        }
+    // Link Shaders to Program
+    let mut program = GLProgram::builder()
+        .attach_vertex_shader(vertex_shader)
+        .attach_fragment_shader(fragment_shader)
+        .link_shaders()?
+        .enable_uniform(MagicUniform::TIME) // Will set the float 'time' as a uniform every call
+        .enable_uniform(MagicUniform::RESOLUTION); // Will pass the 'resolution' as a vec2
 
-        // fragment shader
-        let fragmentShader = gl::CreateShader(gl::FRAGMENT_SHADER);
-        let c_str_frag = CString::new(fragmentShaderSource.as_bytes()).unwrap();
-        gl::ShaderSource(fragmentShader, 1, &c_str_frag.as_ptr(), ptr::null());
-        gl::CompileShader(fragmentShader);
-        // check for shader compile errors
-        gl::GetShaderiv(fragmentShader, gl::COMPILE_STATUS, &mut success);
-        if success != gl::TRUE as GLint {
-            gl::GetShaderInfoLog(fragmentShader, 512, ptr::null_mut(), infoLog.as_mut_ptr() as *mut GLchar);
-            println!("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n{}", str::from_utf8(&infoLog).unwrap());
-        }
+    // Generate Object Data
+    let triangle = GL3FV(vec![
+        GL3F(-0.5, -0.5, 0.0),
+        GL3F(0.5, -0.5, 0.0),
+        GL3F(0.0, 0.5, 0.0),
+        GL3F(-0.5, -0.5, 0.5),
+        GL3F(0.5, -0.5, 0.5),
+        GL3F(0.0, 0.5, 0.5),
+        GL3F(-0.5, -0.5, -0.5),
+        GL3F(0.5, -0.5, -0.5),
+        GL3F(0.0, 0.5, -0.5),
+    ]);
 
-        // link shaders
-        let shaderProgram = gl::CreateProgram();
-        gl::AttachShader(shaderProgram, vertexShader);
-        gl::AttachShader(shaderProgram, fragmentShader);
-        gl::LinkProgram(shaderProgram);
-        // check for linking errors
-        gl::GetProgramiv(shaderProgram, gl::LINK_STATUS, &mut success);
-        if success != gl::TRUE as GLint {
-            gl::GetProgramInfoLog(shaderProgram, 512, ptr::null_mut(), infoLog.as_mut_ptr() as *mut GLchar);
-            println!("ERROR::SHADER::PROGRAM::COMPILATION_FAILED\n{}", str::from_utf8(&infoLog).unwrap());
-        }
-        gl::DeleteShader(vertexShader);
-        gl::DeleteShader(fragmentShader);
+    let colors = GL3FV(vec![
+        GL3F(1.0, 0.0, 0.0),
+        GL3F(0.0, 1.0, 0.0),
+        GL3F(0.0, 0.0, 1.0),
+        GL3F(0.0, 0.0, 1.0),
+        GL3F(1.0, 0.0, 0.0),
+        GL3F(0.0, 1.0, 0.0),
+        GL3F(0.0, 1.0, 0.0),
+        GL3F(0.0, 0.0, 1.0),
+        GL3F(1.0, 0.0, 0.0),
+    ]);
 
-        // set up vertex data (and buffer(s)) and configure vertex attributes
-        // ------------------------------------------------------------------
-        // HINT: type annotation is crucial since default for float literals is f64
-        let vertices: [f32; 9] = [
-            -0.5, -0.5, 0.0, // left
-             0.5, -0.5, 0.0, // right
-             0.0,  0.5, 0.0  // top
-        ];
-        let (mut VBO, mut VAO) = (0, 0);
-        gl::GenVertexArrays(1, &mut VAO);
-        gl::GenBuffers(1, &mut VBO);
-        // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
-        gl::BindVertexArray(VAO);
+    // Create a new object, and attach some data to it
+    program
+        .vao("triangle")
+        .attribute("vertices", triangle)?
+        .attribute("colors", colors)?;
 
-        gl::BindBuffer(gl::ARRAY_BUFFER, VBO);
-        gl::BufferData(gl::ARRAY_BUFFER,
-                       (vertices.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-                       &vertices[0] as *const f32 as *const c_void,
-                       gl::STATIC_DRAW);
-
-        gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, 3 * mem::size_of::<GLfloat>() as GLsizei, ptr::null());
-        gl::EnableVertexAttribArray(0);
-
-        // note that this is allowed, the call to gl::VertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
-        gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-
-        // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
-        // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
-        gl::BindVertexArray(0);
-
-        // uncomment this call to draw in wireframe polygons.
-        // gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
-
-        (shaderProgram, VAO)
-    };
-
-    // render loop
-    // -----------
+    // In case we have more than one program, render all of them
+    let render_queue = vec![program];
     while !window.should_close() {
-        // events
-        // -----
-        process_events(&mut window, &events);
+        // Process events, and extract relevant program details
+        let frame_state = process_events(&glfw, &mut window, &events)?;
 
-        // render
-        // ------
-        unsafe {
-            gl::ClearColor(0.2, 0.3, 0.3, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+        // Generate perspective transform
+        // Rotate the objects alond the X-Z Plane
+        let rotation = ultraviolet::mat::Mat4::from_rotation_y(frame_state.time);
+        // Pull the camera back a bit
+        let camera =
+            ultraviolet::mat::Mat4::from_translation(ultraviolet::vec::Vec3::new(0.0, 0.0, -5.0));
+        // Modify for perspective
+        let perspective = frame_state.perspective_matrix;
+        let mvp = perspective * camera * rotation;
 
-            // draw our first triangle
-            gl::UseProgram(shaderProgram);
-            gl::BindVertexArray(VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
-            gl::DrawArrays(gl::TRIANGLES, 0, 3);
-            // glBindVertexArray(0); // no need to unbind it every time
+        // RENDER
+        for program in render_queue.iter() {
+            program.set_uniform("mvp", mvp)?;
+            program.draw(&frame_state)?;
         }
 
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
+        // Show the buffer on screen, poll for new events, and start again
         window.swap_buffers();
         glfw.poll_events();
     }
-}
-
-// NOTE: not the same version as in common.rs!
-fn process_events(window: &mut glfw::Window, events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>) {
-    for (_, event) in glfw::flush_messages(events) {
-        match event {
-            glfw::WindowEvent::FramebufferSize(width, height) => {
-                // make sure the viewport matches the new window dimensions; note that width and
-                // height will be significantly larger than specified on retina displays.
-                unsafe { gl::Viewport(0, 0, width, height) }
-            }
-            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => window.set_should_close(true),
-            _ => {}
-        }
-    }
+    Ok(())
 }
