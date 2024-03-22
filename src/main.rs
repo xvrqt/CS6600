@@ -1,6 +1,6 @@
 // My Libs
 use cs6600::{
-    frame_state,
+    frame_state, process_events,
     shader::{Fragment, Vertex},
     types::*,
     uniform::MagicUniform,
@@ -141,8 +141,6 @@ fn main() -> Result<(), GLError> {
 
     // In case we have more than one program, render all of them
     let render_queue = vec![program];
-
-    // The loop!
     while !window.should_close() {
         // Process events, and extract relevant program details
         let frame_state = process_events(&glfw, &mut window, &events)?;
@@ -157,26 +155,4 @@ fn main() -> Result<(), GLError> {
         glfw.poll_events();
     }
     Ok(())
-}
-
-fn process_events(
-    glfw: &glfw::Glfw,
-    window: &mut glfw::PWindow,
-    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
-) -> Result<FrameState, GLError> {
-    let mut frame_state = frame_state(glfw);
-    for (_, event) in glfw::flush_messages(events) {
-        match event {
-            // Update Viewport, and Resolution Shader Uniform
-            glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
-                frame_state.resolution = Some((width as f32, height as f32));
-                gl::Viewport(0, 0, width, height)
-            },
-            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                window.set_should_close(true)
-            }
-            _ => {}
-        }
-    }
-    Ok(frame_state)
 }

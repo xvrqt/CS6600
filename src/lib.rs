@@ -1,3 +1,4 @@
+use glfw::{Action, Key};
 // Compiling shaders into OpenGL programs
 pub mod shader;
 pub use shader::Shader;
@@ -30,6 +31,29 @@ pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
     }
 }
 
+// Used in the render loop to set the FrameState
+pub fn process_events(
+    glfw: &glfw::Glfw,
+    window: &mut glfw::PWindow,
+    events: &glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
+) -> Result<FrameState, GLError> {
+    let mut frame_state = frame_state(glfw);
+    for (_, event) in glfw::flush_messages(events) {
+        match event {
+            // Update Viewport, and Resolution Shader Uniform
+            glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
+                frame_state.resolution = Some((width as f32, height as f32));
+                gl::Viewport(0, 0, width, height)
+            },
+            glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+                window.set_should_close(true)
+            }
+            _ => {}
+        }
+    }
+    Ok(frame_state)
+}
+
 // Our Errors will all roll up into this error type for easy handling
 #[derive(Debug)]
 pub enum GLError {
@@ -41,7 +65,6 @@ pub enum GLError {
 }
 
 impl std::error::Error for GLError {}
-
 impl std::fmt::Display for GLError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
