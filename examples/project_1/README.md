@@ -2,6 +2,10 @@
 This first project is about setting up the environment for using OpenGL. We will create an OpenGL window and color it using basic OpenGL functions. 
 **CS6600 Bonus Requirement** Animate the background color.
 
+[Full Project Requirements](https://graphics.cs.utah.edu/courses/cs6610/spring2024/?prj=1)
+
+## Running
+
 Test it out yourself by running: `cargo run --example project_1`
 
 You can also run it with Nix Flakes to manage dependency hell: `nix run /path/to/flake -- run --example project_1`
