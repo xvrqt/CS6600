@@ -7,6 +7,11 @@ Intereted in learning? You can follow along by watching the lectures on hosted o
 ## Quick Links
 |#|Project|Source|Demo|
 |-|:------|:----:|:--:
-1 | Open a window | [[src](https://github.com/xvrqt/cs6600/tree/master/examples/project_1)] | [[demo](https://graphics.cs.utah.edu/courses/cs6610/spring2024/?prj=1)]
+1 | Open a window | [[src](https://github.com/xvrqt/cs6600/tree/master/examples/project_1)] | [[demo](https://youtu.be/e5YbNILbsRc)]
 
 Huge thanks to Cem Yuksel for publishing his wonderful and informative lectures.
+
+## Screenshots
+### Project 1
+Create and open a window with an OpenGL context - additionally make the background change colors.
+![Screen Shot of Project 1](https://github.com/xvrqt/cs6600/blob/master/examples/project_1/screenshot.png?raw=true "Screenshot of Project 1")
