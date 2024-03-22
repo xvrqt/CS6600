@@ -10,10 +10,10 @@ use crate::uniform::GL3FV;
 
 pub struct GLAV3(pub Vec<GL3F>);
 pub trait SetAttributePointer {
-    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<(), VAOError>;
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<GLint, VAOError>;
 }
 impl SetAttributePointer for GL3FV {
-    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<(), VAOError> {
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<GLint, VAOError> {
         self.0.shrink_to_fit();
         // Pointer to the vector's buffer
         let ptr = self.0.as_ptr() as *const std::ffi::c_void;
@@ -25,7 +25,7 @@ impl SetAttributePointer for GL3FV {
             // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
             gl::VertexAttribPointer(id, 3, gl::FLOAT, gl::FALSE, element_size, ptr::null());
         }
-        Ok(())
+        Ok(self.0.len() as i32)
     }
 }
 
@@ -83,6 +83,9 @@ pub struct VAO {
     pub enabled: bool,
     // List of named attributes and their GL IDs
     pub attributes: HashMap<String, Attribute>,
+    // How to draw buffers
+    pub draw_style: GLuint,
+    pub draw_count: GLint,
 }
 
 impl VAO {
@@ -92,6 +95,8 @@ impl VAO {
         let mut id = 0;
         let enabled = true;
         let attributes = HashMap::new();
+        let draw_style = gl::TRIANGLES;
+        let draw_count = 0;
 
         unsafe {
             gl::GenVertexArrays(1, &mut id);
@@ -102,6 +107,8 @@ impl VAO {
             program_id,
             enabled,
             attributes,
+            draw_style,
+            draw_count,
         }
     }
 
@@ -120,7 +127,7 @@ impl VAO {
             gl::BindVertexArray(self.id);
             gl::BindBuffer(gl::ARRAY_BUFFER, attribute.buffer);
             gl::EnableVertexAttribArray(attribute.id);
-            buffer.set_attribute_pointer(attribute.id)?;
+            self.draw_count = buffer.set_attribute_pointer(attribute.id)?;
             // Unbind Targets
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);

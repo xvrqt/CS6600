@@ -86,7 +86,7 @@ impl GLProgram<'_> {
             if vao.enabled {
                 unsafe {
                     gl::BindVertexArray(vao.id);
-                    gl::DrawArrays(gl::TRIANGLES, 0, 3);
+                    gl::DrawArrays(vao.draw_style, 0, vao.draw_count);
                 }
             }
         }
