@@ -1,5 +1,6 @@
 // My Libs
 use cs6600::{
+    load::load_obj,
     // Extracts useful variables from the window + event state each frame
     process_events,
     // For loading shaders of these types
@@ -124,6 +125,9 @@ fn main() -> Result<(), GLError> {
     // Compile Shaders
     let vertex_shader = Shader::<Vertex>::new(VERTEX_SHADER_SOURCE)?;
     let fragment_shader = Shader::<Fragment>::new(FRAGMENT_SHADER_SOURCE)?;
+
+    let obj = load_obj("./src/cube.obj")?;
+    println!("{:?}", obj);
 
     // Link Shaders to Program
     let mut program = GLProgram::builder()

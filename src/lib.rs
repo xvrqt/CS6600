@@ -18,6 +18,9 @@ pub mod load;
 pub mod vao;
 // Types and Setting Uniform Values
 pub mod uniform;
+// Our Wavefront Obj parses into this
+pub mod obj;
+
 // Re-export for more ergnomic use
 pub mod types {
     pub use crate::uniform::*;
