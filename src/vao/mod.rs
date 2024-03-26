@@ -15,6 +15,8 @@ use std::{collections::HashMap, vec::Vec};
 // Used for casting into the OpenGL library
 use std::ptr;
 
+use ultraviolet::vec::{Vec2, Vec3, Vec4};
+
 // Arrays of Vec3<f32>'s 'know' how to set up their attribute pointers
 pub struct GLAV3(pub Vec<GL3F>);
 pub trait SetAttributePointer {
@@ -34,6 +36,57 @@ impl SetAttributePointer for GL3FV {
             gl::VertexAttribPointer(id, 3, gl::FLOAT, gl::FALSE, element_size, ptr::null());
         }
         Ok(self.0.len() as i32)
+    }
+}
+
+impl SetAttributePointer for Vec<Vec2> {
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<GLint, VAOError> {
+        self.shrink_to_fit();
+        // Pointer to the vector's buffer
+        let ptr = self.as_ptr() as *const std::ffi::c_void;
+        let size = (self.len() * std::mem::size_of::<Vec2>()) as GLsizeiptr;
+        let element_size = (std::mem::size_of::<Vec2>()) as GLsizei;
+        unsafe {
+            // Send the data to the GPU
+            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
+            // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
+            gl::VertexAttribPointer(id, 2, gl::FLOAT, gl::FALSE, element_size, ptr::null());
+        }
+        Ok(self.len() as i32)
+    }
+}
+
+impl SetAttributePointer for Vec<Vec3> {
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<GLint, VAOError> {
+        self.shrink_to_fit();
+        // Pointer to the vector's buffer
+        let ptr = self.as_ptr() as *const std::ffi::c_void;
+        let size = (self.len() * std::mem::size_of::<Vec3>()) as GLsizeiptr;
+        let element_size = (std::mem::size_of::<Vec3>()) as GLsizei;
+        unsafe {
+            // Send the data to the GPU
+            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
+            // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
+            gl::VertexAttribPointer(id, 3, gl::FLOAT, gl::FALSE, element_size, ptr::null());
+        }
+        Ok(self.len() as i32)
+    }
+}
+
+impl SetAttributePointer for Vec<Vec4> {
+    fn set_attribute_pointer(&mut self, id: GLuint) -> Result<GLint, VAOError> {
+        self.shrink_to_fit();
+        // Pointer to the vector's buffer
+        let ptr = self.as_ptr() as *const std::ffi::c_void;
+        let size = (self.len() * std::mem::size_of::<Vec4>()) as GLsizeiptr;
+        let element_size = (std::mem::size_of::<Vec4>()) as GLsizei;
+        unsafe {
+            // Send the data to the GPU
+            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
+            // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
+            gl::VertexAttribPointer(id, 4, gl::FLOAT, gl::FALSE, element_size, ptr::null());
+        }
+        Ok(self.len() as i32)
     }
 }
 
@@ -88,6 +141,7 @@ pub struct VAO {
     pub id: GLuint,
     pub program_id: GLuint,
     pub enabled: bool,
+    pub ele_buffer: Option<GLuint>,
     // List of named attributes and their GL IDs
     pub attributes: HashMap<String, Attribute>,
     // How to draw buffers
@@ -113,6 +167,7 @@ impl VAO {
             id,
             program_id,
             enabled,
+            ele_buffer: None,
             attributes,
             draw_style,
             draw_count,

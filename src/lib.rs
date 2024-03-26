@@ -56,7 +56,7 @@ pub fn process_events(
             glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
                 frame_state.resolution = Some((width as f32, height as f32));
                 let aspect_ratio = width as f32 / height as f32;
-                frame_state.perspective_matrix = perspective_gl(1.0, aspect_ratio, 0.1, 100.0);
+                frame_state.perspective_matrix = perspective_gl(1.10, aspect_ratio, 0.1, 100.0);
                 gl::Viewport(0, 0, width, height)
             },
             glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {

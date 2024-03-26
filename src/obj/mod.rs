@@ -1,6 +1,9 @@
 use obj;
 use ultraviolet::vec::{Vec2, Vec3, Vec4};
 
+use crate::vao::SetAttributePointer;
+use crate::vao::VAOError;
+
 // Convert the parser's Obj type to our own.
 // Theirs uses an Array of Structs (AoS) [bad]
 // Ours uses a Struct of Arrays (SoA) [good]

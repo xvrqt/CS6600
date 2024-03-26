@@ -23,94 +23,75 @@ use ultraviolet;
 
 const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
-    layout (location = 0) in vec3 vertices;
-    layout (location = 1) in vec3 colors;
+    layout (location = 0) in vec4 vertices;
+    layout (location = 1) in vec3 normals;
 
+    uniform mat4 mv;
     uniform mat4 mvp;
+    uniform mat3 mvn;
 
-    out vec3 clrs;
+    out vec4 mv_point;
+    out vec3 mv_normal;
+    out vec3 wut;
+
     void main() {
-       gl_Position = mvp * vec4(vertices.x, vertices.y, vertices.z, 1.0);
-       clrs = colors;
+       gl_Position = mvp * vertices;
+       // Model - View only transforms for shading
+       mv_point = mv * vertices; 
+       mv_normal = mvn * normals;
+       wut = normals;
     }
 "#;
 
 const FRAGMENT_SHADER_SOURCE: &str = r#"
     #version 460 core
-    #define PI 3.141592653
 
-    uniform float time;
-    uniform vec2 resolution;
+    // uniform float time;
+    // uniform vec2 resolution;
 
-    in vec3 clrs;
-    in vec4 gl_FragCoord;
+    in vec4 mv_point;
+    in vec3 mv_normal;
+    in vec3 wut;
+
     out vec4 fragColor;
 
-    // Signed Distance to a circle
-    float sdCircle(in vec2 o, in vec2 p, in float r) {
-        return distance(o,p) - r;
-    }
-
-    // My moving circle
-    vec2 circle(in float t, in float r) {
-        float x = r * 10.0 * sin((2.0*PI)+t); 
-        float y = r * 4.0 * cos((2.0*PI*2.0)+t);
-        return vec2(x,y);
-    }
-
-    // Shifting color palette
-    vec3 palette(in float t) {
-        vec3 a = vec3(0.5,0.5,0.5);
-        vec3 b = vec3(0.5,0.5,0.5);
-        vec3 c = vec3(1.0,1.0,1.0);
-        vec3 d = vec3(0.268,0.416,0.557);
-
-        return a + b * cos((2.0*PI)*((c*t)+d));
-    }
-
     void main() {
-        // Normalized pixel coordinates (from 0 to 1)
-        vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / resolution.y;
-        vec2 uv0 = uv; // Save orginal origin
+        vec4 light_color = vec4(1.0, 1.0, 1.0, 1.0);
+        vec4 ambient_light_color = vec4(0.2, 0.2, 0.2, 1.0);
+        vec3 light_direction = normalize(vec3(0.0, 0.0, 1.0));
 
-        // How Fast the Circle Moves
-        float speed = 0.25;
-        float t = time * speed;    
+        // Geometry Term
+        float cos_theta = dot(mv_normal, light_direction);
+        float geometry_term = max(cos_theta, 0.0);
 
-        // Final Output Color
-        vec3 finalColor = vec3(0.0);
+        // Diffuse Term
+        vec4 kd = vec4(1.0, 0.0, 0.0, 1.0);
+        vec4 diffuse = kd * geometry_term;
 
-        float l = sdCircle(circle(t,0.25),uv0,0.5);
-        l = 2.0 * sin(l*8. + time) + 2.5;
-        int layers = int(round(l));
+        // Specular Term
+        vec3 reflection = 2.0 * dot(mv_normal, light_direction) * mv_normal - light_direction;
+        reflection = normalize(reflection);
+        vec3 view_direction = normalize(vec3(-mv_point));
 
-        for(int i = 0; i < layers; i++) {
-            // Circle Center Location
-            vec2 circleLoc = circle(t,0.25);
-            
-            // Repeat in a grid
-            uv *= (resolution.x/resolution.y) / 2.0;
-            float lf = float(l);
-            uv = fract((uv * -1.753) - (lf * 0.1)) - 0.5;
-            
-            float d = sdCircle(circleLoc,uv,0.5);
-            d *= exp(-sdCircle(circleLoc,uv0,0.1));
-            // Initial Color
-            vec3 col = palette(distance(circle(t,.25),uv0) + t);
+        float cos_phi = dot(reflection, view_direction);
+        cos_phi = max(cos_phi, 0.0);
+        vec4 ks = vec4(1.0, 1.0, 1.0, 1.0);
+        vec4 specular = ks * pow(cos_phi, 1000);
 
-            // Rings around the center, move towards center with time
-            d = (0.5*(sin(d*2.*PI/4. + time+float(i)))+1.);
+        // Ambient Light
+        vec4 ambient = vec4(0.0, 0,1,0) * ambient_light_color * 2.0;
 
-            // Vingette around the edges
-            float v = length(uv);
-            float fade = 1.0 - smoothstep(0.25,0.4,v);
-            col = col * pow(d,1.2) * fade;
-            finalColor += col / float(layers);
-        }
+        // // Normalized pixel coordinates (from 0 to 1)
+        // vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / resolution.y;
+        // vec2 uv0 = uv; // Save orginal origin
 
         // Output to screen
-        finalColor += clrs * 0.5;
-        fragColor = vec4(finalColor, 0.33);
+        // vec3 final_color = vec3(0.5, 0.1, 0.9);
+        // fragColor = vec4(final_color, 1.0);
+        fragColor = light_color * (diffuse + specular) + ambient;
+        // fragColor *= 0.01;
+        // vec3 w = vec3(0.5,0.5,0.5) + (wut / 2.0);
+        // fragColor += vec4(w, 1.0);
     }
 "#;
 
@@ -126,47 +107,22 @@ fn main() -> Result<(), GLError> {
     let vertex_shader = Shader::<Vertex>::new(VERTEX_SHADER_SOURCE)?;
     let fragment_shader = Shader::<Fragment>::new(FRAGMENT_SHADER_SOURCE)?;
 
-    let obj = load_obj("./src/cube.obj")?;
-    println!("{:?}", obj);
+    let n = 12;
+    let mut obj = load_obj("./src/wires.obj")?;
+    // obj.vertices = obj.vertices[0..n].to_vec();
+    // obj.normals = obj.normals[0..n].to_vec();
+    // obj.indices = obj.indices[0..n].to_vec();
+    // obj.uv = Vec::new();
+    // println!("{:#?}", obj);
 
     // Link Shaders to Program
-    let mut program = GLProgram::builder()
+    let program = GLProgram::builder()
         .attach_vertex_shader(vertex_shader)
         .attach_fragment_shader(fragment_shader)
         .link_shaders()?
-        .enable_uniform(MagicUniform::TIME) // Will set the float 'time' as a uniform every call
-        .enable_uniform(MagicUniform::RESOLUTION); // Will pass the 'resolution' as a vec2
-
-    // Generate Object Data
-    let triangle = GL3FV(vec![
-        GL3F(-0.5, -0.5, 0.0),
-        GL3F(0.5, -0.5, 0.0),
-        GL3F(0.0, 0.5, 0.0),
-        GL3F(-0.5, -0.5, 0.5),
-        GL3F(0.5, -0.5, 0.5),
-        GL3F(0.0, 0.5, 0.5),
-        GL3F(-0.5, -0.5, -0.5),
-        GL3F(0.5, -0.5, -0.5),
-        GL3F(0.0, 0.5, -0.5),
-    ]);
-
-    let colors = GL3FV(vec![
-        GL3F(1.0, 0.0, 0.0),
-        GL3F(0.0, 1.0, 0.0),
-        GL3F(0.0, 0.0, 1.0),
-        GL3F(0.0, 0.0, 1.0),
-        GL3F(1.0, 0.0, 0.0),
-        GL3F(0.0, 1.0, 0.0),
-        GL3F(0.0, 1.0, 0.0),
-        GL3F(0.0, 0.0, 1.0),
-        GL3F(1.0, 0.0, 0.0),
-    ]);
-
-    // Create a new object, and attach some data to it
-    program
-        .vao("triangle")
-        .attribute("vertices", triangle)?
-        .attribute("colors", colors)?;
+        // .enable_uniform(MagicUniform::TIME) // Will set the float 'time' as a uniform every call
+        // .enable_uniform(MagicUniform::RESOLUTION) // Will pass the 'resolution' as a vec2
+        .vao_from_obj("cube", &obj)?;
 
     // In case we have more than one program, render all of them
     let render_queue = vec![program];
@@ -176,17 +132,39 @@ fn main() -> Result<(), GLError> {
 
         // Generate perspective transform
         // Rotate the objects alond the X-Z Plane
-        let rotation = ultraviolet::mat::Mat4::from_rotation_y(frame_state.time);
+        let mut rotation = ultraviolet::mat::Mat4::from_rotation_x(1.0 * frame_state.time / 5.0);
+        rotation = rotation * ultraviolet::mat::Mat4::from_rotation_y(1.0 * frame_state.time / 5.0);
         // Pull the camera back a bit
         let camera =
-            ultraviolet::mat::Mat4::from_translation(ultraviolet::vec::Vec3::new(0.0, 0.0, -5.0));
+            ultraviolet::mat::Mat4::from_translation(ultraviolet::vec::Vec3::new(0.0, 0.0, -50.0));
+        // ultraviolet::mat::Mat4::look_at(ultraviolet::Vec3::new(0.0,0.0,1.0), ultraviolet::Vec3::new(0.0, 0.0, 0.0), ultraviolet::Vec3::new(0.0,1.0,0.0));
+        // let side = 2.0;
+        // let ortho =
+        //     ultraviolet::projection::rh_yup::orthographic_gl(-side, side, -side, side, -side, side);
         // Modify for perspective
         let perspective = frame_state.perspective_matrix;
         let mvp = perspective * camera * rotation;
 
+        // Calculate the model-view transform matrix
+        let mv = camera * rotation;
+
+        // Calculate the normal model-view transform matrix
+        let mut mvn: ultraviolet::mat::Mat3 = mv.truncate();
+        mvn.inverse();
+        mvn.transpose();
+
+        // println!("GAY");
+        // for n in obj.normals.iter() {
+        //     let y = n.clone();
+        //     let nn = mv.transform_vec3(y);
+        //     println!("Normal was: {:?}  -->  {:?}", n, nn);
+        // }
+
         // RENDER
         for program in render_queue.iter() {
             program.set_uniform("mvp", mvp)?;
+            program.set_uniform("mvn", mvn)?;
+            program.set_uniform("mv", mv)?;
             program.draw(&frame_state)?;
         }
 

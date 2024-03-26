@@ -13,6 +13,8 @@ use crate::vao::VAO;
 // Special per frame values used in the draw() call
 use crate::FrameState;
 
+use crate::obj::Obj;
+
 // OpenGL Types
 use gl::types::*;
 
@@ -183,6 +185,38 @@ impl GLProgram<'_> {
         Ok(())
     }
 
+    // Create a new, or edit an existing, VAO
+    pub fn vao_from_obj<S>(mut self, name: S, obj: &Obj) -> Result<Self, ProgramError>
+    where
+        S: AsRef<str>,
+    {
+        // Return existing, or create a new VAO
+        let vao = match self.vaos.entry(name.as_ref().to_string()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(VAO::new(self.id)),
+        };
+        // Set up the VAO state to use indices
+        let mut ele_buffer = 0;
+        let ele_buffer_ptr = obj.indices.as_ptr() as *const std::ffi::c_void;
+        let ele_buffer_size = (obj.indices.len() * std::mem::size_of::<u16>()) as isize;
+        unsafe {
+            gl::GenBuffers(1, &mut ele_buffer);
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ele_buffer);
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                ele_buffer_size,
+                ele_buffer_ptr,
+                gl::STATIC_DRAW,
+            );
+        }
+        vao.ele_buffer = Some(ele_buffer);
+        vao.attribute("vertices", obj.vertices.clone())?;
+        vao.attribute("normals", obj.normals.clone())?;
+        // vao.attribute("texture_coords", obj.uv)?;
+        vao.draw_count = obj.indices.len() as GLint;
+        Ok(self)
+    }
+
     // Sets a uniform variable at the location
     pub fn set_uniform<S, Type>(&self, name: S, mut value: Type) -> Result<(), ProgramError>
     where
@@ -205,7 +239,7 @@ impl GLProgram<'_> {
     where
         S: AsRef<str>,
     {
-        let c_name = CString::new(name.as_ref().as_bytes()).map_err(|_| {
+        let c_name = CString::new(name.as_ref()).map_err(|_| {
             ProgramError::SettingUniformValue(
                 "Could not create CString from the uniform's location name.".to_string(),
             )
@@ -225,16 +259,30 @@ impl GLProgram<'_> {
         self.update_magic_uniforms(&frame_events)?;
         unsafe {
             gl::UseProgram(self.id);
-            gl::BlendFunc(1, 1);
-            gl::Enable(::gl::BLEND);
+            // gl::Enable(gl::BLEND);
+            // gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+            // gl::BlendFunc(gl::ONE, gl::ONE);
+            gl::Enable(gl::DEPTH_TEST);
+            // gl::DepthFunc(gl::ALWAYS);
+            // gl::CullFace(gl::BACK);
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
         for vao in self.vaos.values() {
             if vao.enabled {
                 unsafe {
                     gl::BindVertexArray(vao.id);
-                    gl::DrawArrays(vao.draw_style, 0, vao.draw_count);
+                    if let Some(ele_buffer) = vao.ele_buffer {
+                        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ele_buffer);
+                        gl::DrawElements(
+                            vao.draw_style,
+                            vao.draw_count,
+                            gl::UNSIGNED_SHORT,
+                            std::ptr::null(),
+                        );
+                    } else {
+                        gl::DrawArrays(vao.draw_style, 0, vao.draw_count);
+                    }
                 }
             }
         }

@@ -40,6 +40,16 @@ impl Uniform for ultraviolet::mat::Mat4 {
     }
 }
 
+impl Uniform for ultraviolet::mat::Mat3 {
+    fn set(&mut self, location: GLint) -> Result<(), UniformError> {
+        let ptr = self.cols.as_ptr() as *const GLfloat;
+        unsafe {
+            gl::UniformMatrix3fv(location, 1, gl::FALSE, ptr);
+        }
+        Ok(())
+    }
+}
+
 // Values
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug)]

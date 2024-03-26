@@ -5,3 +5,5 @@ result-bin
 .direnv/**
 .vscode/**
 .cargo
+*.obj
+*.mtl
