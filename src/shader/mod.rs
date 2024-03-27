@@ -2,6 +2,10 @@
 pub mod error;
 pub use error::ShaderError;
 
+// Import our built-in shader types
+pub mod blinn_phong;
+pub use blinn_phong::{BlinnPhongFragmentShader, BlinnPhongVertexShader};
+
 use gl::types::*;
 
 // We're calling into the user's OpenGL Library
@@ -47,11 +51,19 @@ impl<'a> Shader<'a, Vertex> {
     pub fn new(source: &'a str) -> Result<Shader<Vertex>, ShaderError> {
         new_shader::<Vertex>(source)
     }
+
+    pub fn blinn_phong() -> Result<BlinnPhongVertexShader<'a>, ShaderError> {
+        new_shader::<Vertex>(blinn_phong::VERTEX_SHADER_SOURCE)
+    }
 }
 
 impl<'a> Shader<'a, Fragment> {
     pub fn new(source: &'a str) -> Result<Shader<Fragment>, ShaderError> {
         new_shader::<Fragment>(source)
+    }
+
+    pub fn blinn_phong() -> Result<BlinnPhongFragmentShader<'a>, ShaderError> {
+        new_shader::<Fragment>(blinn_phong::FRAGMENT_SHADER_SOURCE)
     }
 }
 

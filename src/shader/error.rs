@@ -32,3 +32,10 @@ impl From<ShaderError> for crate::GLError {
         crate::GLError::Shader(error)
     }
 }
+
+// Allows for painless casting into our crate's rollup error
+impl From<ShaderError> for crate::program::error::ProgramError {
+    fn from(error: ShaderError) -> Self {
+        crate::program::error::ProgramError::ShaderCompilation(error)
+    }
+}
