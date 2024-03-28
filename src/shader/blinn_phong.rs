@@ -1,11 +1,50 @@
 use super::{Fragment, Shader, Vertex};
 
 // Aliases so we can keep track of what types of shaders we're using
-pub type BlinnPhongVertexShader<'a> = Shader<'a, Vertex>;
-pub type BlinnPhongFragmentShader<'a> = Shader<'a, Fragment>;
+pub struct BlinnPhongVertexShader<'a>(pub Shader<'a, Vertex>);
+pub struct BlinnPhongFragmentShader<'a>(pub Shader<'a, Fragment>);
+
+// Convenience for constructors that operate on more agnostice types
+impl<'a> From<Shader<'a, Vertex>> for BlinnPhongVertexShader<'a> {
+    fn from(s: Shader<'a, Vertex>) -> BlinnPhongVertexShader<'a> {
+        BlinnPhongVertexShader(s)
+    }
+}
+
+impl<'a> From<Shader<'a, Fragment>> for BlinnPhongFragmentShader<'a> {
+    fn from(s: Shader<'a, Fragment>) -> BlinnPhongFragmentShader<'a> {
+        BlinnPhongFragmentShader(s)
+    }
+}
+
+// Unwrap for when we don't want type checking (like in constructors)
+impl<'a> std::ops::Deref for BlinnPhongVertexShader<'a> {
+    type Target = Shader<'a, Vertex>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> std::ops::Deref for BlinnPhongFragmentShader<'a> {
+    type Target = Shader<'a, Fragment>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
+
+    // struct Light {
+    //     vec4 color;
+    //     vec4 position;
+    // };
+    // 
+    // layout (std140, binding = 0) uniform Lights {
+    //     Light lights [10];
+    // }
+    //
+
     layout (location = 0) in vec4 vertices;
     layout (location = 1) in vec3 normals;
 

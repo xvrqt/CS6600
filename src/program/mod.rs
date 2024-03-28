@@ -1,12 +1,8 @@
-#![allow(unused_imports)]
-#![allow(dead_code)]
+// #![allow(unused_imports)]
+// #![allow(dead_code)]
 // Import and Re-Export our Error Type
 pub mod error;
 pub use error::ProgramError;
-
-// // Allows the caller to build their own GLProgram
-// pub mod builder;
-// use crate::program::builder::{GLProgramBuilder, NoFS, NoVS};
 
 // Programs must attach at least a Vertex and Fragment Shader
 use crate::shader::{
@@ -32,6 +28,8 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
+use ultraviolet::mat::{Mat3, Mat4};
+use ultraviolet::vec::{Vec2, Vec3, Vec4};
 
 // Structs used to type a GLProgram and restrict some implementations
 
@@ -48,10 +46,45 @@ pub struct GLProgram<V, F> {
     magic_uniforms: MagicUniform,
     // List of VAOs to render
     vaos: HashMap<String, VAO>,
+    // Camera transformation
+    camera: Mat4,
 }
 
-// Used to create a GLProgram
-impl<'a> GLProgram<Shader<'_, Vertex>, Shader<'_, Fragment>> {
+pub struct NoVS;
+pub struct NoFS;
+
+impl<'a> GLProgram<NoVS, NoFS> {
+    // Creates a new OpenGL Program using a built-in Blinn-Phong shader
+    // Return type provides additional functions to more easily manage scenes
+    pub fn blinn_phong_shading(
+    ) -> Result<GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>>, ProgramError>
+    {
+        // Compile Blinn-Phong Shaders
+        let vertex_shader = Shader::<Vertex>::blinn_phong()?;
+        let fragment_shader = Shader::<Fragment>::blinn_phong()?;
+        let id;
+        unsafe {
+            id = gl::CreateProgram();
+
+            gl::AttachShader(id, vertex_shader.id);
+            gl::AttachShader(id, fragment_shader.id);
+
+            gl::LinkProgram(id);
+        }
+
+        // If it was a success, return the Blinn-Phong builder
+        link_shaders_success(id).and_then(|_| {
+            Ok(GLProgram {
+                id,
+                vertex_shader,
+                fragment_shader,
+                magic_uniforms: MagicUniform::NONE,
+                vaos: HashMap::new(),
+                camera: ORIGINM4,
+            })
+        })
+    }
+
     // Create a new OpenGL Program using custom shaders
     pub fn new(
         vertex_shader: CustomVertexShader<'a>,
@@ -75,22 +108,23 @@ impl<'a> GLProgram<Shader<'_, Vertex>, Shader<'_, Fragment>> {
                 fragment_shader,
                 magic_uniforms: MagicUniform::NONE,
                 vaos: HashMap::new(),
+                camera: ORIGINM4.clone(),
             })
         })
     }
+}
 
-    // Creates a new OpenGL Program using a built-in Blinn-Phong shader
-    // Return type provides additional functions to more easily manage scenes
-    pub fn blinn_phong_shading(
-    ) -> Result<GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>>, ProgramError>
-    {
-        // Compile Blinn-Phong Shaders
-        let vertex_shader = Shader::<Vertex>::blinn_phong()?;
-        let fragment_shader = Shader::<Fragment>::blinn_phong()?;
+const ORIGINM4: Mat4 = Mat4::new(ORIGINV4, ORIGINV4, ORIGINV4, Vec4::new(0.0, 0.0, 0.0, 1.0));
+const ORIGINV3: Vec3 = Vec3::new(0.0, 0.0, 0.0);
+const ORIGINV4: Vec4 = Vec4::new(0.0, 0.0, 0.0, 0.0);
+const Y_UNIT_V3: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 
-        GLProgram::new(vertex_shader, fragment_shader)
+// Used to create a GLProgram
+impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
+    // Sets the camera to the selected position, it always faces the origin
+    pub fn point_camera_at_origin(&mut self, position: Vec3) -> () {
+        self.camera = ultraviolet::mat::Mat4::look_at(position, ORIGINV3, Y_UNIT_V3);
     }
-
     // Create a new, or edit an existing, VAO
     pub fn vao<S>(&mut self, name: S) -> &mut VAO
     where
@@ -205,6 +239,17 @@ impl<'a> GLProgram<Shader<'_, Vertex>, Shader<'_, Fragment>> {
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
+        // Set uniforms for camera position
+        let mvp = frame_events.perspective_matrix * self.camera;
+        let mv = self.camera;
+        let mut mvn: ultraviolet::mat::Mat3 = mv.truncate();
+        mvn.inverse();
+        mvn.transpose();
+
+        self.set_uniform("mvp", mvp)?;
+        self.set_uniform("mvn", mvn)?;
+        self.set_uniform("mv", mv)?;
+
         for vao in self.vaos.values() {
             if vao.enabled {
                 unsafe {
@@ -225,38 +270,7 @@ impl<'a> GLProgram<Shader<'_, Vertex>, Shader<'_, Fragment>> {
         }
         Ok(())
     }
-    // Create a new OpenGL Program
-    // pub fn builder() -> GLProgramBuilder<NoVS, NoFS> {
-    //     let id;
-    //     unsafe {
-    //         id = gl::CreateProgram();
-    //     }
-    //     GLProgramBuilder {
-    //         id,
-    //         vertex_shader: NoVS,
-    //         fragment_shader: NoFS,
-    //     }
-    // }
 }
-
-// Easy conversion from builder to program
-// impl<'a, V, F> From<GLProgramBuilder<V, F>> for GLProgram<V, F> {
-//     fn from(builder: GLProgramBuilder<V, F>) -> Self {
-//         let GLProgramBuilder {
-//             id,
-//             vertex_shader,
-//             fragment_shader,
-//         } = builder;
-//
-//         GLProgram {
-//             id,
-//             vertex_shader,
-//             fragment_shader,
-//             magic_uniforms: MagicUniform::NONE,
-//             vaos: HashMap::new(),
-//         }
-//     }
-// }
 
 // Helper function that checks if linking the shaders to the program was a success
 pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {

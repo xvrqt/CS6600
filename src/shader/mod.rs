@@ -13,16 +13,13 @@ use std::ffi::CString;
 use std::ptr;
 use std::str;
 
-// Private Shader internals
-#[allow(dead_code)]
-mod opaque {
-    #[derive(Debug)]
-    pub(crate) struct Shader_<'a> {
-        pub(crate) id: gl::types::GLuint,
-        pub(crate) source: std::borrow::Cow<'a, str>,
-    }
-}
+// Dummy types to help the compiler catch mistakes
+#[derive(Debug)]
+pub struct Vertex;
+#[derive(Debug)]
+pub struct Fragment;
 
+// Nice type alias denoting the use of not built-in shaders
 pub type CustomVertexShader<'a> = Shader<'a, Vertex>;
 pub type CustomFragmentShader<'a> = Shader<'a, Fragment>;
 
@@ -30,13 +27,36 @@ pub type CustomFragmentShader<'a> = Shader<'a, Fragment>;
 // pipeline they operate on. Making them an Enum also provides easy matching,
 // and prevents accidentally assigning a Geometry Shader to the Vertex Shader
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Shader<'a, Type> {
     pub(crate) id: gl::types::GLuint,
     // If we have a 'static str as our shader code (likely during rapid development)
     // Then we skip an allocation
+    #[allow(dead_code)]
     pub(crate) source: std::borrow::Cow<'a, str>,
     _pd: std::marker::PhantomData<Type>,
+}
+
+// Different types of shaders. Vertex, Fragment are mandatory
+impl<'a> Shader<'a, Vertex> {
+    pub fn new(source: &'a str) -> Result<CustomVertexShader, ShaderError> {
+        new_shader::<Vertex>(source)
+    }
+
+    pub fn blinn_phong() -> Result<BlinnPhongVertexShader<'a>, ShaderError> {
+        let vs = new_shader::<Vertex>(blinn_phong::VERTEX_SHADER_SOURCE)?;
+        Ok(BlinnPhongVertexShader(vs))
+    }
+}
+
+impl<'a> Shader<'a, Fragment> {
+    pub fn new(source: &'a str) -> Result<CustomFragmentShader, ShaderError> {
+        new_shader::<Fragment>(source)
+    }
+
+    pub fn blinn_phong() -> Result<BlinnPhongFragmentShader<'a>, ShaderError> {
+        let fs = new_shader::<Fragment>(blinn_phong::FRAGMENT_SHADER_SOURCE)?;
+        Ok(BlinnPhongFragmentShader(fs))
+    }
 }
 
 // When we're done with the shader, let OpenGL know it can clean it up
@@ -48,33 +68,6 @@ impl<'a, Type> Drop for Shader<'a, Type> {
         }
     }
 }
-
-// Different types of shaders. Vertex, Fragment are mandatory
-impl<'a> CustomVertexShader<'a> {
-    pub fn new(source: &'a str) -> Result<CustomVertexShader, ShaderError> {
-        new_shader::<Vertex>(source)
-    }
-
-    pub fn blinn_phong() -> Result<BlinnPhongVertexShader<'a>, ShaderError> {
-        new_shader::<Vertex>(blinn_phong::VERTEX_SHADER_SOURCE)
-    }
-}
-
-impl<'a> CustomFragmentShader<'a> {
-    pub fn new(source: &'a str) -> Result<CustomFragmentShader, ShaderError> {
-        new_shader::<Fragment>(source)
-    }
-
-    pub fn blinn_phong() -> Result<BlinnPhongFragmentShader<'a>, ShaderError> {
-        new_shader::<Fragment>(blinn_phong::FRAGMENT_SHADER_SOURCE)
-    }
-}
-
-// Dummy types to help the compiler catch mistakes
-#[derive(Debug)]
-pub struct Vertex;
-#[derive(Debug)]
-pub struct Fragment;
 
 trait ShaderTypes {
     fn gl_shader_type() -> GLuint;
@@ -146,39 +139,3 @@ where
         _pd: std::marker::PhantomData::<Type>,
     })
 }
-
-// // Helper function that checks if linking the shaders to the program was a success
-// pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {
-//     let mut success = gl::FALSE as GLint;
-//     unsafe {
-//         gl::GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
-//         if success != gl::TRUE as GLint {
-//             // Determine the log's length
-//             let mut length = 0 as GLint;
-//             gl::GetShaderiv(program_id, gl::INFO_LOG_LENGTH, &mut length);
-//             let log_length: usize = length.try_into().map_err(|_| {
-//                 ProgramError::Linking(String::from("Couldn't determine length of error log."))
-//             })?;
-//
-//             // Set up a buffer to receive the log
-//             let mut error_log = Vec::<u8>::with_capacity(log_length);
-//             if log_length > 0 {
-//                 error_log.set_len(log_length - 1);
-//             } // Don't read the NULL terminator
-//
-//             gl::GetProgramInfoLog(
-//                 program_id,
-//                 512,
-//                 std::ptr::null_mut(),
-//                 error_log.as_mut_ptr() as *mut GLchar,
-//             );
-//
-//             // Return the error log and exit
-//             Err(ProgramError::Linking(
-//                 std::str::from_utf8(&error_log).unwrap().into(),
-//             ))
-//         } else {
-//             Ok(())
-//         }
-//     }
-// }
