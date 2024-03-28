@@ -27,6 +27,7 @@ fn main() -> Result<(), GLError> {
     program.add_light(Vec3::new(5.0, 0.0, 5.0), Vec3::new(0.5, 0.9, 0.9))?;
     program.add_light(Vec3::new(-5.0, -5.0, 5.0), Vec3::new(0.1, 1.0, 0.1))?;
     program.ambient_light(Vec3::new(1.0, 1.0, 1.0), 0.05)?;
+    program.set_ortho(5.0, 0.1, 100.0);
     // program.use_perspective();
     let _ = program.vao_from_obj("gay", &obj);
 

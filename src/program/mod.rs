@@ -195,6 +195,11 @@ const Y_UNIT_V3: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 
 // Used to create a GLProgram
 impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
+    pub fn set_ortho(&mut self, side: f32, near_clip: f32, far_clip: f32) -> () {
+        self.ortho = Projection::Ortho(-side, side, side, -side, near_clip, far_clip);
+        self.orthographic_projection_matrix = self.ortho.mat();
+    }
+
     pub fn use_perspective(&mut self) -> () {
         self.use_perspective = true;
     }
@@ -401,7 +406,7 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
         // Update projection matrices if the aspect ratio has changed
         if let Some(resolution) = frame_events.resolution {
             let aspect_ratio = resolution.0 / resolution.1;
-            let Projection::Ortho(l, r, t, b, n, f) = self.ortho;
+            let Projection::Ortho(_, r, t, b, n, f) = self.ortho;
             let r = r * aspect_ratio;
             let l = -r;
             let new_ortho = Projection::Ortho(l, r, t, b, n, f);
