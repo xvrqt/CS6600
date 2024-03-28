@@ -96,19 +96,26 @@ impl<'a> GLProgram<NoVS, NoFS> {
         let l = -SIDE;
         let t = SIDE;
         let b = -SIDE;
-        let n = 0.1; // Near plane in z-axis
-        let f = 200.0; // Far plane in z-axis
+        let n = 4.0; // Near plane in z-axis
+        let f = 2000.0; // Far plane in z-axis
         let ortho = Projection::Ortho(l, r, t, b, n, f);
         // let ortho = ultraviolet::projection::rh_yup::orthographic_gl(l, r, b, t, n, f);
         // let perspective = ultraviolet::projection::rh_yup::perspective_gl(1.0, 1.0, 0.1, 10000.0);
         let perspective = Mat4::new(
+            // Vec4::new((2.0 * n) / (r - l), 0.0, 0.0, 0.0),
+            // Vec4::new(0.0, (2.0 * n) / (t - b), 0.0, 0.0),
+            // Vec4::new(
+            //     (r + l) / (r - l),
+            //     (t + b) / (t - b),
+            //     -(f + n) / (f - n),
+            //     -1.0,
+            // ),
+            // Vec4::new(0.0, 0.0, (-2.0 * f * n) / (f - n), 0.0),
             Vec4::new(n, 0.0, 0.0, 0.0),
             Vec4::new(0.0, n, 0.0, 0.0),
-            Vec4::new(0.0, 0.0, n + f, 1.0),
-            Vec4::new(0.0, 0.0, -f * n, 0.0),
+            Vec4::new(0.0, 0.0, n + f, -1.0),
+            Vec4::new(0.0, 0.0, f * n, 0.0),
         );
-        println!("{:#?}", perspective);
-        println!("{:#?}", ortho);
         (ortho, perspective)
     }
     // Creates a new OpenGL Program using a built-in Blinn-Phong shader
@@ -411,6 +418,11 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
             let l = -r;
             let new_ortho = Projection::Ortho(l, r, t, b, n, f);
             self.orthographic_projection_matrix = new_ortho.mat();
+        }
+
+        // Toggle projection if P was pressed
+        if frame_events.toggle_projection {
+            self.use_perspective = !self.use_perspective;
         }
         // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
         // Transform for inside the Blinn-Phong Vertex Shader

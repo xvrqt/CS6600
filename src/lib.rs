@@ -30,6 +30,7 @@ pub mod types {
 pub struct FrameState {
     pub time: f32,                      // Total time elapsed
     pub resolution: Option<(f32, f32)>, // Width, Height
+    pub toggle_projection: bool,
 }
 
 pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
@@ -37,6 +38,7 @@ pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
         // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
         time: glfw.get_time() as f32,
         resolution: None, // Only contains Some() when the screen changes size to avoid sending it
+        toggle_projection: false,
     }
 }
 
@@ -48,7 +50,9 @@ pub fn process_events(
 ) -> Result<FrameState, GLError> {
     let mut frame_state = frame_state(glfw);
     for (_, event) in glfw::flush_messages(events) {
+        // TODO: I shouldn't have to reset each loop, there's got to be a better way
         frame_state.resolution = None;
+        frame_state.toggle_projection = false;
         match event {
             // Update Viewport, and Resolution Shader Uniform
             glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
@@ -57,6 +61,9 @@ pub fn process_events(
             },
             glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                 window.set_should_close(true)
+            }
+            glfw::WindowEvent::Key(Key::P, _, Action::Press, _) => {
+                frame_state.toggle_projection = true;
             }
             _ => {}
         }
