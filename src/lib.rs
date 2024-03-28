@@ -30,7 +30,6 @@ pub mod types {
 pub struct FrameState {
     pub time: f32,                      // Total time elapsed
     pub resolution: Option<(f32, f32)>, // Width, Height
-    pub perspective_matrix: ultraviolet::mat::Mat4,
 }
 
 pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
@@ -38,8 +37,6 @@ pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
         // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
         time: glfw.get_time() as f32,
         resolution: None, // Only contains Some() when the screen changes size to avoid sending it
-        // every frame
-        perspective_matrix: perspective_gl(3.1415 / 6.0, 1.0, 1.0, -1.0),
     }
 }
 
@@ -51,12 +48,11 @@ pub fn process_events(
 ) -> Result<FrameState, GLError> {
     let mut frame_state = frame_state(glfw);
     for (_, event) in glfw::flush_messages(events) {
+        frame_state.resolution = None;
         match event {
             // Update Viewport, and Resolution Shader Uniform
             glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
                 frame_state.resolution = Some((width as f32, height as f32));
-                let aspect_ratio = width as f32 / height as f32;
-                frame_state.perspective_matrix = perspective_gl(1.10, aspect_ratio, 0.1, 100.0);
                 gl::Viewport(0, 0, width, height)
             },
             glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
