@@ -35,16 +35,6 @@ impl<'a> std::ops::Deref for BlinnPhongFragmentShader<'a> {
 pub const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
 
-    // struct Light {
-    //     vec4 color;
-    //     vec4 position;
-    // };
-    // 
-    // layout (std140, binding = 0) uniform Lights {
-    //     Light lights [10];
-    // }
-    //
-
     layout (location = 0) in vec4 vertices;
     layout (location = 1) in vec3 normals;
 
@@ -67,15 +57,28 @@ pub const VERTEX_SHADER_SOURCE: &str = r#"
 pub const FRAGMENT_SHADER_SOURCE: &str = r#"
     #version 460 core
 
+    struct Light {
+        vec4 color;
+        vec4 position;
+    };
+
+    layout (std140, binding = 0) uniform Lights {
+        Light lights [1];
+    };
+
+    uniform mat4 mv;
+
     in vec4 mv_point;
     in vec3 mv_normal;
 
     out vec4 fragColor;
 
     void main() {
-        vec4 light_color = vec4(1.0, 1.0, 1.0, 1.0);
+        vec4 final_color = vec4(0,0,0,1);
+        for ( uint i = 0; i < 1; i++) {
+        vec4 light_color = lights[i].color;
         vec4 ambient_light_color = vec4(0.2, 0.2, 0.2, 1.0);
-        vec3 light_direction = normalize(vec3(0.0, 0.0, 1.0));
+        vec3 light_direction = normalize(-vec3(mv * lights[i].position));
 
         // Geometry Term
         float cos_theta = dot(mv_normal, light_direction);
@@ -102,6 +105,8 @@ pub const FRAGMENT_SHADER_SOURCE: &str = r#"
         vec4 ambient = vec4(0.0, 0,1,0) * ambient_light_color * 2.0;
 
         // Output to screen
-        fragColor = light_color * (diffuse + specular) + ambient;
+        final_color += light_color * (diffuse + specular) + ambient;
+        }
+        fragColor = final_color;
     }
 "#;

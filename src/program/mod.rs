@@ -31,7 +31,12 @@ use std::ffi::CString;
 use ultraviolet::mat::{Mat3, Mat4};
 use ultraviolet::vec::{Vec2, Vec3, Vec4};
 
-// Structs used to type a GLProgram and restrict some implementations
+#[repr(C)]
+#[derive(Debug)]
+struct LightSource {
+    color: Vec4,
+    position: Vec4,
+}
 
 // Semantic OpenGL Program
 #[derive(Debug)]
@@ -48,6 +53,9 @@ pub struct GLProgram<V, F> {
     vaos: HashMap<String, VAO>,
     // Camera transformation
     camera: Mat4,
+    // List of light sources
+    lights: Option<Vec<LightSource>>,
+    lights_buffer: Option<GLuint>,
 }
 
 pub struct NoVS;
@@ -81,6 +89,8 @@ impl<'a> GLProgram<NoVS, NoFS> {
                 magic_uniforms: MagicUniform::NONE,
                 vaos: HashMap::new(),
                 camera: ORIGINM4,
+                lights: Some(Vec::new()),
+                lights_buffer: None,
             })
         })
     }
@@ -109,6 +119,8 @@ impl<'a> GLProgram<NoVS, NoFS> {
                 magic_uniforms: MagicUniform::NONE,
                 vaos: HashMap::new(),
                 camera: ORIGINM4.clone(),
+                lights: None,
+                lights_buffer: None,
             })
         })
     }
@@ -125,6 +137,51 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
     pub fn point_camera_at_origin(&mut self, position: Vec3) -> () {
         self.camera = ultraviolet::mat::Mat4::look_at(position, ORIGINV3, Y_UNIT_V3);
     }
+
+    // Adds a light to the scene
+    pub fn add_light(&mut self, position: Vec3, color: Vec3) -> Result<(), ProgramError> {
+        let block_id = self.get_uniform_block_index("Lights")?;
+        println!("block_id: {:?}", block_id);
+
+        if let Some(lights) = self.lights.as_mut() {
+            let light = LightSource {
+                color: Vec4::new(color.x, color.y, color.z, 1.0),
+                position: Vec4::new(position.x, position.y, position.z, 1.0),
+            };
+            lights.push(light);
+
+            // Rebind the lights
+            let binding_point = 1 as GLuint;
+
+            // Generate a Uniform Buffer if we haven't alreaady
+            let buffer_id = match self.lights_buffer {
+                Some(id) => id,
+                None => {
+                    let mut id = 0 as GLuint;
+                    unsafe {
+                        gl::GenBuffers(1, &mut id);
+                    }
+                    self.lights_buffer = Some(id);
+                    id
+                }
+            };
+            println!("buffer_id: {:?}", buffer_id);
+            // Buffer the data
+            unsafe {
+                gl::UniformBlockBinding(self.id, block_id, binding_point);
+                let ptr = lights.as_ptr() as *const std::ffi::c_void;
+                let size = (lights.len() * std::mem::size_of::<LightSource>()) as GLsizeiptr;
+                gl::BindBuffer(gl::UNIFORM_BUFFER, buffer_id);
+                gl::BufferData(gl::UNIFORM_BUFFER, size, ptr, gl::DYNAMIC_DRAW);
+            }
+            // Bind the buffer and the block to the same place
+            unsafe {
+                gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer_id);
+            }
+        }
+        Ok(())
+    }
+
     // Create a new, or edit an existing, VAO
     pub fn vao<S>(&mut self, name: S) -> &mut VAO
     where
@@ -225,6 +282,25 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
         }
     }
 
+    fn get_uniform_block_index<S>(&self, name: S) -> Result<GLuint, ProgramError>
+    where
+        S: AsRef<str>,
+    {
+        let c_name = CString::new(name.as_ref()).map_err(|_| {
+            ProgramError::SettingUniformValue(
+                "Could not create CString from the uniform's location name.".to_string(),
+            )
+        })?;
+        let location;
+        unsafe {
+            location = gl::GetUniformBlockIndex(self.id, c_name.into_raw());
+        }
+        match location {
+            gl::INVALID_INDEX => Err(ProgramError::GetUniformLocation(name.as_ref().into())),
+            _ => Ok(location),
+        }
+    }
+
     // Updates the magic uniforms, draws every VAO in order
     pub fn draw(&self, frame_events: &FrameState) -> Result<(), ProgramError> {
         self.update_magic_uniforms(&frame_events)?;
@@ -239,13 +315,9 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
-        // Set uniforms for camera position
-        let mvp = frame_events.perspective_matrix * self.camera;
-        let mv = self.camera;
-        let mut mvn: ultraviolet::mat::Mat3 = mv.truncate();
-        mvn.inverse();
-        mvn.transpose();
-
+        // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
+        // Transform for inside the Blinn-Phong Vertex Shader
+        let (mvp, mv, mvn) = generate_view_matrices(frame_events.perspective_matrix, self.camera);
         self.set_uniform("mvp", mvp)?;
         self.set_uniform("mvn", mvn)?;
         self.set_uniform("mv", mv)?;
@@ -270,6 +342,19 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
         }
         Ok(())
     }
+}
+
+// Help function to generate the view matrices used for setting vertex position and normals for
+// Blinn-Phong Shaders
+pub(crate) fn generate_view_matrices(perspective_matrix: Mat4, camera: Mat4) -> (Mat4, Mat4, Mat3) {
+    // Set uniforms for camera position
+    let mvp = perspective_matrix * camera;
+    let mv = camera;
+    let mut mvn: ultraviolet::mat::Mat3 = mv.truncate();
+    mvn.inverse();
+    mvn.transpose();
+
+    (mvp, mv, mvn)
 }
 
 // Helper function that checks if linking the shaders to the program was a success
