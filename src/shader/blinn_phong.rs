@@ -63,10 +63,11 @@ pub const FRAGMENT_SHADER_SOURCE: &str = r#"
     };
 
     layout (std140, binding = 0) uniform Lights {
-        Light lights [1];
+        Light lights [100];
     };
 
     uniform mat4 mv;
+    uniform uint num_lights;
 
     in vec4 mv_point;
     in vec3 mv_normal;
@@ -75,7 +76,7 @@ pub const FRAGMENT_SHADER_SOURCE: &str = r#"
 
     void main() {
         vec4 final_color = vec4(0,0,0,1);
-        for ( uint i = 0; i < 1; i++) {
+        for ( uint i = 0; i < num_lights; i++) {
         vec4 light_color = lights[i].color;
         vec4 ambient_light_color = vec4(0.2, 0.2, 0.2, 1.0);
         vec3 light_direction = normalize(-vec3(mv * lights[i].position));

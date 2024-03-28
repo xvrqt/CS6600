@@ -23,7 +23,8 @@ fn main() -> Result<(), GLError> {
     // Use built-in Blinn-Phong Shader
     let mut program = GLProgram::blinn_phong_shading()?;
     program.point_camera_at_origin(Vec3::new(5.0, -5.0, 19.0));
-    program.add_light(Vec3::new(5.0, -5.0, 19.0), Vec3::new(1.0, 1.0, 1.0))?;
+    program.add_light(Vec3::new(5.0, -5.0, 19.0), Vec3::new(0.2, 0.2, 0.2))?;
+    // program.add_light(Vec3::new(14.0, -1.0, -14.0), Vec3::new(0.5, 0.2, 0.9))?;
     let _ = program.vao_from_obj("gay", &obj);
 
     // In case we have more than one program, render all of them

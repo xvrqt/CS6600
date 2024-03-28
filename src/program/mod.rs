@@ -139,16 +139,21 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
     }
 
     // Adds a light to the scene
+    // TODO: This function is disgusting, because we shouldn't need to unwrap the Option, we
+    // will always have the Vec; lots of immutable/mutable borrow hacks. We also need to check that
+    // we don't have over 100 light sources and throw an error.
     pub fn add_light(&mut self, position: Vec3, color: Vec3) -> Result<(), ProgramError> {
         let block_id = self.get_uniform_block_index("Lights")?;
-        println!("block_id: {:?}", block_id);
+        let mut num_lights = 0;
 
         if let Some(lights) = self.lights.as_mut() {
+            lights.shrink_to_fit();
             let light = LightSource {
                 color: Vec4::new(color.x, color.y, color.z, 1.0),
                 position: Vec4::new(position.x, position.y, position.z, 1.0),
             };
             lights.push(light);
+            num_lights = lights.len();
 
             // Rebind the lights
             let binding_point = 1 as GLuint;
@@ -165,7 +170,6 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
                     id
                 }
             };
-            println!("buffer_id: {:?}", buffer_id);
             // Buffer the data
             unsafe {
                 gl::UniformBlockBinding(self.id, block_id, binding_point);
@@ -179,6 +183,7 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
                 gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer_id);
             }
         }
+        self.set_uniform("num_lights", GL1U(num_lights as GLuint))?;
         Ok(())
     }
 
