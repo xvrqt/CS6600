@@ -2,53 +2,116 @@
 // Import the type we're building (GLProgram) and our Error Type
 use super::error::ProgramError;
 use super::GLProgram;
+use crate::shader::{CustomFragmentShader, CustomVertexShader};
 
 // Programs must attach at least a Vertex and Fragment Shader
 use crate::shader::{Fragment, Shader, Vertex};
-
-// Create and set uniform shader values
-use crate::uniform::MagicUniform;
 
 // OpenGL Types
 use gl::types::*;
 // Used to track Vertex Array Objects use std::collections::HashMap;
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 // Used to create error logs
-use std::collections::HashMap;
 use std::vec::Vec;
 
 // Using a typesetting builder pattern to create valid OpenGL Programs
-// T: Type of Shaders (Builtin or Custom)
 // V: Vertex Shader Type
 // F: Fragment Shader Type
-pub struct GLProgramBuilder<T, V, F> {
+pub struct GLProgramBuilder<V, F> {
     pub(crate) id: GLuint,
     pub(crate) vertex_shader: V,
     pub(crate) fragment_shader: F,
-    _pd: std::marker::PhantomData<T>,
-    // pub(crate) camera: C,
-    // pub(crate) lights: L,
 }
 
 // Dummy types; Since a Vertex and a Fragment shader are mandatory,
 // use typesetting to ensure the user builds a valie GLProgram at compile time
 // TODO: Can I hide these from users ?
-// T
-pub struct CustomShader;
-pub struct BuiltInShader;
 
-// T -> BuiltinShader variants
-pub use crate::shader::blinn_phong::{BlinnPhongFragmentShader, BlinnPhongVertexShader};
-
-// T -> CustomShader
+// If the caller hasn't attached a vertex or fragment shader
 pub struct NoVS;
 pub struct NoFS;
-//
-// pub struct NoLight;
-// pub struct NoCamera;
+
+// Built-in shader variants
+pub use crate::shader::blinn_phong::{BlinnPhongFragmentShader, BlinnPhongVertexShader};
+
+// If we haven't attached any shaders, allow the user to select a builtin shader
+impl<'a> GLProgramBuilder<NoVS, NoFS> {
+    pub fn blinn_phong_shading(
+        self,
+    ) -> Result<GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>>, ProgramError>
+    {
+        // Compile Blinn-Phong Shaders
+        let vertex_shader = Shader::<Vertex>::blinn_phong()?;
+        let fragment_shader = Shader::<Fragment>::blinn_phong()?;
+
+        // Attach them to this program, and link them
+        unsafe {
+            gl::AttachShader(self.id, vertex_shader.id);
+            gl::AttachShader(self.id, fragment_shader.id);
+
+            gl::LinkProgram(self.id);
+        }
+
+        // If it was a success, return the Blinn-Phong builder
+        link_shaders_success(self.id).and_then(|_| Ok(self.into()))
+    }
+}
+
+// If both a vertex shader and a fragment shader are present link them and return a Custom GLProgram
+impl<'a> GLProgramBuilder<CustomVertexShader<'a>, CustomFragmentShader<'a>> {
+    // Links vertex and fragment shader to an OpenGL program
+    pub fn link_shaders(
+        self,
+    ) -> Result<GLProgram<CustomVertexShader<'a>, CustomFragmentShader<'a>>, ProgramError> {
+        unsafe {
+            gl::LinkProgram(self.id);
+        }
+
+        // If it was a success, return a GLProgram from the builder
+        link_shaders_success(self.id).and_then(|_| Ok(self.into()))
+    }
+}
+
+// If we haven't attached a Vertex Shader provide a method to attach one
+impl<F> GLProgramBuilder<NoVS, F> {
+    pub fn attach_vertex_shader(
+        self,
+        vertex_shader: CustomVertexShader,
+    ) -> GLProgramBuilder<CustomVertexShader, F> {
+        unsafe { gl::AttachShader(self.id, vertex_shader.id) }
+        let Self {
+            id,
+            fragment_shader,
+            ..
+        } = self;
+        GLProgramBuilder {
+            id,
+            vertex_shader,
+            fragment_shader,
+        }
+    }
+}
+
+// If we haven't attached a Fragment Shader provide a method to attach one
+impl<V> GLProgramBuilder<V, NoFS> {
+    pub fn attach_fragment_shader(
+        self,
+        fragment_shader: CustomFragmentShader,
+    ) -> GLProgramBuilder<V, CustomFragmentShader> {
+        unsafe { gl::AttachShader(self.id, fragment_shader.id) }
+        let Self {
+            id, vertex_shader, ..
+        } = self;
+        GLProgramBuilder {
+            id,
+            vertex_shader,
+            fragment_shader,
+        }
+    }
+}
 
 // Helper function that checks if linking the shaders to the program was a success
-fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {
+pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {
     let mut success = gl::FALSE as GLint;
     unsafe {
         gl::GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
@@ -79,106 +142,6 @@ fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {
             ))
         } else {
             Ok(())
-        }
-    }
-}
-
-// If we haven't attached any shaders, allow the user to select a builtin shader
-impl<'a> GLProgramBuilder<CustomShader, NoVS, NoFS> {
-    pub fn blinn_phong_shading(
-        self,
-    ) -> Result<
-        GLProgramBuilder<BuiltInShader, BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>>,
-        ProgramError,
-    > {
-        // Compile Blinn-Phong Shaders
-        let vertex_shader = Shader::<Vertex>::blinn_phong()?;
-        let fragment_shader = Shader::<Fragment>::blinn_phong()?;
-
-        // Attach them to this program, and link them
-        unsafe {
-            gl::AttachShader(self.id, vertex_shader.id);
-            gl::AttachShader(self.id, fragment_shader.id);
-
-            gl::LinkProgram(self.id);
-        }
-
-        // If it was a success, return the Blinn-Phong builder
-        link_shaders_success(self.id).and_then(|_| {
-            Ok(GLProgramBuilder {
-                id: self.id,
-                vertex_shader,
-                fragment_shader,
-                _pd: std::marker::PhantomData,
-            })
-        })
-    }
-}
-
-// If both a vertex shader and a fragment shader are present link them and return a Custom GLProgram
-impl<'a> GLProgramBuilder<CustomShader, Shader<'a, Vertex>, Shader<'a, Fragment>> {
-    // Links vertex and fragment shader to an OpenGL program
-    pub fn link_shaders(self) -> Result<GLProgram<'a>, ProgramError> {
-        unsafe {
-            gl::LinkProgram(self.id);
-        }
-
-        // If it was a success, return a GLProgram
-        link_shaders_success(self.id).and_then(|_| {
-            let Self {
-                id,
-                fragment_shader,
-                vertex_shader,
-                ..
-            } = self;
-
-            Ok(GLProgram {
-                id: self.id,
-                vertex_shader,
-                fragment_shader,
-                magic_uniforms: MagicUniform::NONE,
-                vaos: HashMap::new(),
-            })
-        })
-    }
-}
-
-// If we haven't attached a Vertex Shader provide a method to attach one
-impl<F> GLProgramBuilder<CustomShader, NoVS, F> {
-    pub fn attach_vertex_shader(
-        self,
-        vs: Shader<Vertex>,
-    ) -> GLProgramBuilder<CustomShader, Shader<Vertex>, F> {
-        unsafe { gl::AttachShader(self.id, vs.id) }
-        let Self {
-            id,
-            fragment_shader,
-            ..
-        } = self;
-        GLProgramBuilder {
-            id,
-            vertex_shader: vs,
-            fragment_shader,
-            _pd: std::marker::PhantomData,
-        }
-    }
-}
-
-// If we haven't attached a Fragment Shader provide a method to attach one
-impl<V> GLProgramBuilder<CustomShader, V, NoFS> {
-    pub fn attach_fragment_shader(
-        self,
-        fs: Shader<Fragment>,
-    ) -> GLProgramBuilder<CustomShader, V, Shader<Fragment>> {
-        unsafe { gl::AttachShader(self.id, fs.id) }
-        let Self {
-            id, vertex_shader, ..
-        } = self;
-        GLProgramBuilder {
-            id,
-            vertex_shader,
-            fragment_shader: fs,
-            _pd: std::marker::PhantomData,
         }
     }
 }

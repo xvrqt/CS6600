@@ -29,8 +29,9 @@ fn main() -> Result<(), GLError> {
 
     let obj = load_obj("./src/wires.obj")?;
 
-    // Link Shaders to Program
-    let program = GLProgram::builder().blinn_phong_shading()?;
+    // Use built-in Blinn-Phong Shader
+    let mut program = GLProgram::blinn_phong_shading()?;
+    let _ = program.vao_from_obj("gay", &obj);
 
     // In case we have more than one program, render all of them
     let render_queue = vec![program];

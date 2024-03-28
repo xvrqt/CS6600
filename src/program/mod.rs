@@ -1,13 +1,18 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
 // Import and Re-Export our Error Type
 pub mod error;
 pub use error::ProgramError;
 
-// Allows the caller to build their own GLProgram
-pub mod builder;
-use crate::program::builder::{CustomShader, GLProgramBuilder, NoFS, NoVS};
+// // Allows the caller to build their own GLProgram
+// pub mod builder;
+// use crate::program::builder::{GLProgramBuilder, NoFS, NoVS};
 
 // Programs must attach at least a Vertex and Fragment Shader
-use crate::shader::{Fragment, Shader, Vertex};
+use crate::shader::{
+    BlinnPhongFragmentShader, BlinnPhongVertexShader, CustomFragmentShader, CustomVertexShader,
+    Fragment, Shader, Vertex,
+};
 // Convenient use of special types that work well with OpenGL
 use crate::types::*;
 // Create and set uniform shader values
@@ -28,14 +33,17 @@ use std::collections::HashMap;
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
 
+// Structs used to type a GLProgram and restrict some implementations
+
 // Semantic OpenGL Program
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct GLProgram<'a> {
+// V, F -> Shader Type (built-in shaders have special implementations to make things easier)
+pub struct GLProgram<V, F> {
     id: u32, // OpenGL keeps track of programs with integer IDs
     // We never read these again, but I can imagine a future where we would want to
-    vertex_shader: Shader<'a, Vertex>,
-    fragment_shader: Shader<'a, Fragment>,
+    vertex_shader: V,
+    fragment_shader: F,
     // List of uniforms we update automagically for the caller
     magic_uniforms: MagicUniform,
     // List of VAOs to render
@@ -43,18 +51,44 @@ pub struct GLProgram<'a> {
 }
 
 // Used to create a GLProgram
-impl GLProgram<'_> {
-    // Create a new OpenGL Program
-    pub fn builder() -> GLProgramBuilder<CustomShader, NoVS, NoFS> {
+impl<'a> GLProgram<Shader<'_, Vertex>, Shader<'_, Fragment>> {
+    // Create a new OpenGL Program using custom shaders
+    pub fn new(
+        vertex_shader: CustomVertexShader<'a>,
+        fragment_shader: CustomFragmentShader<'a>,
+    ) -> Result<GLProgram<CustomVertexShader<'a>, CustomFragmentShader<'a>>, ProgramError> {
         let id;
         unsafe {
             id = gl::CreateProgram();
+
+            gl::AttachShader(id, vertex_shader.id);
+            gl::AttachShader(id, fragment_shader.id);
+
+            gl::LinkProgram(id);
         }
-        GLProgramBuilder {
-            id,
-            vertex_shader: NoVS,
-            fragment_shader: NoFS,
-        }
+
+        // If it was a success, return the Blinn-Phong builder
+        link_shaders_success(id).and_then(|_| {
+            Ok(GLProgram {
+                id,
+                vertex_shader,
+                fragment_shader,
+                magic_uniforms: MagicUniform::NONE,
+                vaos: HashMap::new(),
+            })
+        })
+    }
+
+    // Creates a new OpenGL Program using a built-in Blinn-Phong shader
+    // Return type provides additional functions to more easily manage scenes
+    pub fn blinn_phong_shading(
+    ) -> Result<GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>>, ProgramError>
+    {
+        // Compile Blinn-Phong Shaders
+        let vertex_shader = Shader::<Vertex>::blinn_phong()?;
+        let fragment_shader = Shader::<Fragment>::blinn_phong()?;
+
+        GLProgram::new(vertex_shader, fragment_shader)
     }
 
     // Create a new, or edit an existing, VAO
@@ -89,7 +123,7 @@ impl GLProgram<'_> {
     }
 
     // Create a new, or edit an existing, VAO
-    pub fn vao_from_obj<S>(mut self, name: S, obj: &Obj) -> Result<Self, ProgramError>
+    pub fn vao_from_obj<S>(&mut self, name: S, obj: &Obj) -> Result<&mut Self, ProgramError>
     where
         S: AsRef<str>,
     {
@@ -190,5 +224,72 @@ impl GLProgram<'_> {
             }
         }
         Ok(())
+    }
+    // Create a new OpenGL Program
+    // pub fn builder() -> GLProgramBuilder<NoVS, NoFS> {
+    //     let id;
+    //     unsafe {
+    //         id = gl::CreateProgram();
+    //     }
+    //     GLProgramBuilder {
+    //         id,
+    //         vertex_shader: NoVS,
+    //         fragment_shader: NoFS,
+    //     }
+    // }
+}
+
+// Easy conversion from builder to program
+// impl<'a, V, F> From<GLProgramBuilder<V, F>> for GLProgram<V, F> {
+//     fn from(builder: GLProgramBuilder<V, F>) -> Self {
+//         let GLProgramBuilder {
+//             id,
+//             vertex_shader,
+//             fragment_shader,
+//         } = builder;
+//
+//         GLProgram {
+//             id,
+//             vertex_shader,
+//             fragment_shader,
+//             magic_uniforms: MagicUniform::NONE,
+//             vaos: HashMap::new(),
+//         }
+//     }
+// }
+
+// Helper function that checks if linking the shaders to the program was a success
+pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {
+    let mut success = gl::FALSE as GLint;
+    unsafe {
+        gl::GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
+        if success != gl::TRUE as GLint {
+            // Determine the log's length
+            let mut length = 0 as GLint;
+            gl::GetShaderiv(program_id, gl::INFO_LOG_LENGTH, &mut length);
+            let log_length: usize = length.try_into().map_err(|_| {
+                ProgramError::Linking(String::from("Couldn't determine length of error log."))
+            })?;
+
+            // Set up a buffer to receive the log
+            let mut error_log = Vec::<u8>::with_capacity(log_length);
+            if log_length > 0 {
+                error_log.set_len(log_length - 1);
+            } // Don't read the NULL terminator
+
+            gl::GetProgramInfoLog(
+                program_id,
+                512,
+                std::ptr::null_mut(),
+                error_log.as_mut_ptr() as *mut GLchar,
+            );
+
+            // Return the error log and exit
+            Err(ProgramError::Linking(
+                std::str::from_utf8(&error_log).unwrap().into(),
+            ))
+        } else {
+            Ok(())
+        }
     }
 }

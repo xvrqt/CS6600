@@ -23,6 +23,9 @@ mod opaque {
     }
 }
 
+pub type CustomVertexShader<'a> = Shader<'a, Vertex>;
+pub type CustomFragmentShader<'a> = Shader<'a, Fragment>;
+
 // All shaders must have a defined type corresponding to the part of the graphics
 // pipeline they operate on. Making them an Enum also provides easy matching,
 // and prevents accidentally assigning a Geometry Shader to the Vertex Shader
@@ -47,8 +50,8 @@ impl<'a, Type> Drop for Shader<'a, Type> {
 }
 
 // Different types of shaders. Vertex, Fragment are mandatory
-impl<'a> Shader<'a, Vertex> {
-    pub fn new(source: &'a str) -> Result<Shader<Vertex>, ShaderError> {
+impl<'a> CustomVertexShader<'a> {
+    pub fn new(source: &'a str) -> Result<CustomVertexShader, ShaderError> {
         new_shader::<Vertex>(source)
     }
 
@@ -57,8 +60,8 @@ impl<'a> Shader<'a, Vertex> {
     }
 }
 
-impl<'a> Shader<'a, Fragment> {
-    pub fn new(source: &'a str) -> Result<Shader<Fragment>, ShaderError> {
+impl<'a> CustomFragmentShader<'a> {
+    pub fn new(source: &'a str) -> Result<CustomFragmentShader, ShaderError> {
         new_shader::<Fragment>(source)
     }
 
@@ -143,3 +146,39 @@ where
         _pd: std::marker::PhantomData::<Type>,
     })
 }
+
+// // Helper function that checks if linking the shaders to the program was a success
+// pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<(), ProgramError> {
+//     let mut success = gl::FALSE as GLint;
+//     unsafe {
+//         gl::GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
+//         if success != gl::TRUE as GLint {
+//             // Determine the log's length
+//             let mut length = 0 as GLint;
+//             gl::GetShaderiv(program_id, gl::INFO_LOG_LENGTH, &mut length);
+//             let log_length: usize = length.try_into().map_err(|_| {
+//                 ProgramError::Linking(String::from("Couldn't determine length of error log."))
+//             })?;
+//
+//             // Set up a buffer to receive the log
+//             let mut error_log = Vec::<u8>::with_capacity(log_length);
+//             if log_length > 0 {
+//                 error_log.set_len(log_length - 1);
+//             } // Don't read the NULL terminator
+//
+//             gl::GetProgramInfoLog(
+//                 program_id,
+//                 512,
+//                 std::ptr::null_mut(),
+//                 error_log.as_mut_ptr() as *mut GLchar,
+//             );
+//
+//             // Return the error log and exit
+//             Err(ProgramError::Linking(
+//                 std::str::from_utf8(&error_log).unwrap().into(),
+//             ))
+//         } else {
+//             Ok(())
+//         }
+//     }
+// }
