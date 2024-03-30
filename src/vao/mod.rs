@@ -174,6 +174,17 @@ impl VAO {
         }
     }
 
+    // In world space
+    // For now is just a 5 unit sphere around origin
+    pub fn distance_from(&self, position: Vec3) -> f32 {
+        let diff = (position - Vec3::new(0.0, 0.0, 0.0)).normalized();
+        let sign = diff.dot(position);
+        let sign = if sign >= 0.0 { 1.0 } else { -1.0 };
+        let mag = position.mag() - 5.0;
+        let mag = if mag < 0.0 { 0.0 } else { mag };
+        sign * mag
+    }
+
     // Attaches a buffer to a named attribute location in the shader code, and informs
     // OpenGL how to pull from it.
     pub fn attribute<S, B>(&mut self, name: S, mut buffer: B) -> Result<&mut VAO, VAOError>

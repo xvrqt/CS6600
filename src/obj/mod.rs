@@ -46,3 +46,5 @@ impl From<obj::Obj<obj::TexturedVertex, u16>> for Obj {
         }
     }
 }
+
+impl Obj {}

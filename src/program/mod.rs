@@ -31,7 +31,7 @@ use std::collections::HashMap;
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
 use ultraviolet::mat::{Mat3, Mat4};
-use ultraviolet::vec::{Vec2, Vec3, Vec4};
+use ultraviolet::vec::{Vec3, Vec4};
 
 use self::camera::Camera;
 
@@ -63,17 +63,19 @@ pub struct GLProgram<V, F> {
     ortho: Projection,
     orthographic_projection_matrix: Mat4,
     perspective_projection_matrix: Mat4,
+    perp: Projection,
     use_perspective: bool,
 }
 
 pub struct NoVS;
 pub struct NoFS;
 
-const SIDE: f32 = 5.0;
+const SIDE: f32 = 1.0;
 
 #[derive(Debug)]
 enum Projection {
     Ortho(f32, f32, f32, f32, f32, f32),
+    Perspective(f32, f32, f32, f32, f32, f32),
 }
 
 impl Projection {
@@ -82,44 +84,56 @@ impl Projection {
             Projection::Ortho(l, r, t, b, n, f) => Mat4::new(
                 Vec4::new(2.0 / (r - l), 0.0, 0.0, 0.0),
                 Vec4::new(0.0, 2.0 / (t - b), 0.0, 0.0),
-                Vec4::new(0.0, 0.0, -2.0 / (f - n), 0.0),
+                Vec4::new(0.0, 0.0, -2.0 / (-f - -n), 0.0),
                 Vec4::new(
                     -(r + l) / (r - l),
                     -(t + b) / (t - b),
-                    -(f + n) / (f - n),
+                    -(-f + -n) / (-f - -n),
                     1.0,
                 ),
+            ),
+            Projection::Perspective(l, r, t, b, n, f) => Mat4::new(
+                Vec4::new((2.0 * -n) / (r - l), 0.0, 0.0, 0.0),
+                Vec4::new(0.0, (2.0 * -n) / (t - b), 0.0, 0.0),
+                Vec4::new(
+                    (r + l) / (r - l),
+                    (t + b) / (t - b),
+                    -(-f + -n) / (-f - -n),
+                    -1.0,
+                ),
+                Vec4::new(0.0, 0.0, (-2.0 * -f * -n) / (-f - -n), 0.0),
             ),
         }
     }
 }
 
 impl<'a> GLProgram<NoVS, NoFS> {
-    fn default_projections() -> (Projection, Mat4) {
+    fn default_projections() -> (Projection, Projection) {
         let r = SIDE;
         let l = -SIDE;
         let t = SIDE;
         let b = -SIDE;
-        let n = 4.0; // Near plane in z-axis
-        let f = 2000.0; // Far plane in z-axis
+        let n = -1.0; // Near plane in z-axis
+        let f = -20000.0; // Far plane in z-axis
         let ortho = Projection::Ortho(l, r, t, b, n, f);
         // let ortho = ultraviolet::projection::rh_yup::orthographic_gl(l, r, b, t, n, f);
         // let perspective = ultraviolet::projection::rh_yup::perspective_gl(1.0, 1.0, 0.1, 10000.0);
-        let perspective = Mat4::new(
-            // Vec4::new((2.0 * n) / (r - l), 0.0, 0.0, 0.0),
-            // Vec4::new(0.0, (2.0 * n) / (t - b), 0.0, 0.0),
-            // Vec4::new(
-            //     (r + l) / (r - l),
-            //     (t + b) / (t - b),
-            //     -(f + n) / (f - n),
-            //     -1.0,
-            // ),
-            // Vec4::new(0.0, 0.0, (-2.0 * f * n) / (f - n), 0.0),
-            Vec4::new(n, 0.0, 0.0, 0.0),
-            Vec4::new(0.0, n, 0.0, 0.0),
-            Vec4::new(0.0, 0.0, n + f, -1.0),
-            Vec4::new(0.0, 0.0, f * n, 0.0),
-        );
+        // let perspective = Mat4::new(
+        //     Vec4::new((2.0 * -n) / (r - l), 0.0, 0.0, 0.0),
+        //     Vec4::new(0.0, (2.0 * -n) / (t - b), 0.0, 0.0),
+        //     Vec4::new(
+        //         (r + l) / (r - l),
+        //         (t + b) / (t - b),
+        //         -(-f + -n) / (-f - -n),
+        //         -1.0,
+        //     ),
+        //     Vec4::new(0.0, 0.0, (-2.0 * -f * -n) / (-f - -n), 0.0),
+        // Vec4::new(n, 0.0, 0.0, 0.0),
+        // Vec4::new(0.0, n, 0.0, 0.0),
+        // Vec4::new(0.0, 0.0, n + f, -1.0),
+        // Vec4::new(0.0, 0.0, f * n, 0.0),
+        // );
+        let perspective = Projection::Perspective(l, r, t, b, n, f);
         (ortho, perspective)
     }
     // Creates a new OpenGL Program using a built-in Blinn-Phong shader
@@ -139,8 +153,9 @@ impl<'a> GLProgram<NoVS, NoFS> {
 
             gl::LinkProgram(id);
         }
-        let (ortho, perspective_projection_matrix) = GLProgram::default_projections();
+        let (ortho, perp) = GLProgram::default_projections();
         let orthographic_projection_matrix = ortho.mat();
+        let perspective_projection_matrix = perp.mat();
 
         // If it was a success, return the Blinn-Phong builder
         link_shaders_success(id).and_then(|_| {
@@ -154,6 +169,7 @@ impl<'a> GLProgram<NoVS, NoFS> {
                 lights: Some(Vec::new()),
                 lights_buffer: None,
                 ortho,
+                perp,
                 orthographic_projection_matrix,
                 perspective_projection_matrix,
                 use_perspective: false,
@@ -176,8 +192,9 @@ impl<'a> GLProgram<NoVS, NoFS> {
             gl::LinkProgram(id);
         }
 
-        let (ortho, perspective_projection_matrix) = GLProgram::default_projections();
+        let (ortho, perp) = GLProgram::default_projections();
         let orthographic_projection_matrix = ortho.mat();
+        let perspective_projection_matrix = perp.mat();
 
         // If it was a success, return the Blinn-Phong builder
         link_shaders_success(id).and_then(|_| {
@@ -191,6 +208,7 @@ impl<'a> GLProgram<NoVS, NoFS> {
                 lights: None,
                 lights_buffer: None,
                 ortho,
+                perp,
                 orthographic_projection_matrix,
                 perspective_projection_matrix,
                 use_perspective: false,
@@ -199,10 +217,7 @@ impl<'a> GLProgram<NoVS, NoFS> {
     }
 }
 
-const ORIGINM4: Mat4 = Mat4::new(ORIGINV4, ORIGINV4, ORIGINV4, Vec4::new(0.0, 0.0, 0.0, 1.0));
 const ORIGINV3: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-const ORIGINV4: Vec4 = Vec4::new(0.0, 0.0, 0.0, 0.0);
-const Y_UNIT_V3: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 
 // Used to create a GLProgram
 impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
@@ -216,7 +231,7 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
     }
     // Sets the camera to the selected position, it always faces the origin
     pub fn point_camera_at_origin(&mut self, position: Vec3) -> () {
-        self.camera.matrix = ultraviolet::mat::Mat4::look_at(position, ORIGINV3, Y_UNIT_V3);
+        self.camera = Camera::look_at(position, ORIGINV3);
     }
 
     // Adds a light to the scene
@@ -417,12 +432,36 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
         // Update projection matrices if the aspect ratio has changed
         if let Some(resolution) = frame_events.resolution {
             let aspect_ratio = resolution.0 / resolution.1;
-            let Projection::Ortho(_, r, t, b, n, f) = self.ortho;
+            let (r, t, b, n, f) = match self.ortho {
+                Projection::Ortho(_, r, t, b, n, f) => (r, t, b, n, f),
+                Projection::Perspective(_, r, t, b, n, f) => (r, t, b, n, f),
+            };
             let r = r * aspect_ratio;
             let l = -r;
             let new_ortho = Projection::Ortho(l, r, t, b, n, f);
             self.orthographic_projection_matrix = new_ortho.mat();
         }
+
+        // let mut near_plane = 0.1;
+        // for vao in self.vaos.values() {
+        //     let a = vao.distance_from(self.camera.position);
+        //     if a > near_plane {
+        //         near_plane = a;
+        //     }
+        // }
+        //
+        // let (l, r, t, b, f) = match self.perp {
+        //     Projection::Ortho(l, r, t, b, _, f) => (l, r, t, b, f),
+        //     Projection::Perspective(l, r, t, b, _, f) => (l, r, t, b, f),
+        // };
+        // self.perp = Projection::Perspective(l, r, t, b, -near_plane, f - near_plane);
+        // self.perspective_projection_matrix = self.perp.mat();
+
+        // let radius = 7.0;
+        // let speed = 0.5;
+        // let cam_x = (frame_events.time * speed).sin() * radius;
+        // let cam_z = (frame_events.time * speed).cos() * radius;
+        // self.camera = Camera::look_at(Vec3::new(cam_x, 0.0, cam_z), ORIGINV3);
 
         // Toggle projection if P was pressed
         if frame_events.toggle_projection {
@@ -434,7 +473,7 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
             self.perspective_projection_matrix,
             self.orthographic_projection_matrix,
             self.use_perspective,
-            self.camera.matrix,
+            self.camera.view_matrix(),
         );
         self.set_uniform("mvp", mvp)?;
         self.set_uniform("mvn", mvn)?;
@@ -473,7 +512,7 @@ pub(crate) fn generate_view_matrices(
     // Set uniforms for camera position
     let mvp;
     if use_perspective {
-        mvp = ortho_matrix * perspective_matrix * camera;
+        mvp = perspective_matrix * camera;
     } else {
         mvp = ortho_matrix * camera;
     }

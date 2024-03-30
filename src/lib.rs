@@ -69,6 +69,24 @@ pub fn process_events(
             glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
                 frame_state.camera_change.push(CameraMove::Backwards);
             }
+            glfw::WindowEvent::Key(Key::Q, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::Left);
+            }
+            glfw::WindowEvent::Key(Key::E, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::Right);
+            }
+            glfw::WindowEvent::Key(Key::A | Key::H, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::LookLeft);
+            }
+            glfw::WindowEvent::Key(Key::D | Key::L, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::LookRight);
+            }
+            glfw::WindowEvent::Key(Key::J, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::LookDown);
+            }
+            glfw::WindowEvent::Key(Key::K, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::LookUp);
+            }
             _ => {}
         }
     }
