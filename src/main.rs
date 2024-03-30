@@ -18,17 +18,17 @@ fn main() -> Result<(), GLError> {
     // Load function pointers from the user's linked OpenGL library
     gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
 
-    let obj = load_obj("./objs/cube.obj")?;
+    let obj = load_obj("./objs/axes.obj")?;
 
     // Use built-in Blinn-Phong Shader
     let mut program = GLProgram::blinn_phong_shading()?;
     program.point_camera_at_origin(Vec3::new(5.0, 5.0, 5.0));
     program.add_light(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.2, 0.2, 0.2))?;
     program.add_light(Vec3::new(5.0, 0.0, 5.0), Vec3::new(0.5, 0.9, 0.9))?;
-    program.add_light(Vec3::new(-5.0, -5.0, 5.0), Vec3::new(0.1, 1.0, 0.1))?;
-    program.ambient_light(Vec3::new(1.0, 1.0, 1.0), 0.05)?;
+    program.add_light(Vec3::new(-5.0, -5.0, 5.0), Vec3::new(0.5, 1.0, 0.5))?;
+    program.ambient_light(Vec3::new(1.0, 1.0, 1.0), 0.15)?;
     // program.set_ortho(3.0, -10.0, 10.0);
-    // program.use_perspective();
+    program.use_perspective();
     let _ = program.vao_from_obj("gay", &obj);
 
     // In case we have more than one program, render all of them
@@ -39,6 +39,7 @@ fn main() -> Result<(), GLError> {
 
         // RENDER
         for program in render_queue.iter_mut() {
+            program.camera.update(&frame_state.camera_change);
             program.draw(&frame_state)?;
         }
 

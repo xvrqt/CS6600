@@ -4,6 +4,8 @@
 pub mod error;
 pub use error::ProgramError;
 
+pub mod camera;
+
 // Programs must attach at least a Vertex and Fragment Shader
 use crate::shader::{
     BlinnPhongFragmentShader, BlinnPhongVertexShader, CustomFragmentShader, CustomVertexShader,
@@ -31,6 +33,8 @@ use std::ffi::CString;
 use ultraviolet::mat::{Mat3, Mat4};
 use ultraviolet::vec::{Vec2, Vec3, Vec4};
 
+use self::camera::Camera;
+
 #[repr(C)]
 #[derive(Debug)]
 struct LightSource {
@@ -52,7 +56,7 @@ pub struct GLProgram<V, F> {
     // List of VAOs to render
     vaos: HashMap<String, VAO>,
     // Camera transformation
-    camera: Mat4,
+    pub camera: camera::Camera,
     // List of light sources
     lights: Option<Vec<LightSource>>,
     lights_buffer: Option<GLuint>,
@@ -146,7 +150,7 @@ impl<'a> GLProgram<NoVS, NoFS> {
                 fragment_shader,
                 magic_uniforms: MagicUniform::NONE,
                 vaos: HashMap::new(),
-                camera: ORIGINM4,
+                camera: Camera::new(),
                 lights: Some(Vec::new()),
                 lights_buffer: None,
                 ortho,
@@ -183,7 +187,7 @@ impl<'a> GLProgram<NoVS, NoFS> {
                 fragment_shader,
                 magic_uniforms: MagicUniform::NONE,
                 vaos: HashMap::new(),
-                camera: ORIGINM4.clone(),
+                camera: Camera::new(),
                 lights: None,
                 lights_buffer: None,
                 ortho,
@@ -212,7 +216,7 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
     }
     // Sets the camera to the selected position, it always faces the origin
     pub fn point_camera_at_origin(&mut self, position: Vec3) -> () {
-        self.camera = ultraviolet::mat::Mat4::look_at(position, ORIGINV3, Y_UNIT_V3);
+        self.camera.matrix = ultraviolet::mat::Mat4::look_at(position, ORIGINV3, Y_UNIT_V3);
     }
 
     // Adds a light to the scene
@@ -430,7 +434,7 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
             self.perspective_projection_matrix,
             self.orthographic_projection_matrix,
             self.use_perspective,
-            self.camera,
+            self.camera.matrix,
         );
         self.set_uniform("mvp", mvp)?;
         self.set_uniform("mvn", mvn)?;

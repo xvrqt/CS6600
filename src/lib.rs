@@ -1,14 +1,13 @@
 // Window Creation + Control
 use glfw::{Action, Key};
-// Linear Algebra Crate
-use ultraviolet;
-use ultraviolet::projection::rh_yup::perspective_gl;
 
 // Opening a window with an OpenGL conteext
 pub mod window;
 // Linking shaders to crete a GL Program
 pub mod program;
 pub use program::GLProgram;
+
+pub use program::camera::CameraMove;
 // Compiling shaders into OpenGL programs
 pub mod shader;
 pub use shader::Shader;
@@ -31,6 +30,7 @@ pub struct FrameState {
     pub time: f32,                      // Total time elapsed
     pub resolution: Option<(f32, f32)>, // Width, Height
     pub toggle_projection: bool,
+    pub camera_change: std::vec::Vec<CameraMove>,
 }
 
 pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
@@ -39,6 +39,7 @@ pub fn frame_state(glfw: &glfw::Glfw) -> FrameState {
         time: glfw.get_time() as f32,
         resolution: None, // Only contains Some() when the screen changes size to avoid sending it
         toggle_projection: false,
+        camera_change: Vec::new(),
     }
 }
 
@@ -50,9 +51,6 @@ pub fn process_events(
 ) -> Result<FrameState, GLError> {
     let mut frame_state = frame_state(glfw);
     for (_, event) in glfw::flush_messages(events) {
-        // TODO: I shouldn't have to reset each loop, there's got to be a better way
-        frame_state.resolution = None;
-        frame_state.toggle_projection = false;
         match event {
             // Update Viewport, and Resolution Shader Uniform
             glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
@@ -64,6 +62,12 @@ pub fn process_events(
             }
             glfw::WindowEvent::Key(Key::P, _, Action::Press, _) => {
                 frame_state.toggle_projection = true;
+            }
+            glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::Forwards);
+            }
+            glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
+                frame_state.camera_change.push(CameraMove::Backwards);
             }
             _ => {}
         }
