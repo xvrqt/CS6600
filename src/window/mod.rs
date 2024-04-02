@@ -27,14 +27,14 @@ const DEFAULT_WINDOW_MODE: glfw::WindowMode = glfw::WindowMode::Windowed;
 // Type-Alias for readability
 type GLFW = glfw::Glfw;
 type Window = glfw::PWindow;
-type WindowEvents = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
+type WindowGLFWEvents = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
 
 // Main struct
 #[derive(Debug)]
 pub struct GLWindow {
     pub(crate) glfw: GLFW,
     pub(crate) window: Window,
-    pub(crate) events: WindowEvents,
+    pub(crate) events: WindowGLFWEvents,
 }
 
 impl GLWindow {
@@ -107,34 +107,35 @@ impl GLWindow {
                     gl::Viewport(0, 0, width, height)
                 },
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
-                    self.window.set_should_close(true)
+                    self.window.set_should_close(true);
+                    frame_state.window_events.push(WindowEvents::Close);
                 }
                 glfw::WindowEvent::Key(Key::P, _, Action::Press, _) => {
                     frame_state.toggle_projection = true;
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::Forwards);
+                    frame_state.camera_events.push(CameraMove::Forwards);
                 }
                 glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::Backwards);
+                    frame_state.camera_events.push(CameraMove::Backwards);
                 }
                 glfw::WindowEvent::Key(Key::Q, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::Left);
+                    frame_state.camera_events.push(CameraMove::Left);
                 }
                 glfw::WindowEvent::Key(Key::E, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::Right);
+                    frame_state.camera_events.push(CameraMove::Right);
                 }
                 glfw::WindowEvent::Key(Key::A | Key::H, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::LookLeft);
+                    frame_state.camera_events.push(CameraMove::LookLeft);
                 }
                 glfw::WindowEvent::Key(Key::D | Key::L, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::LookRight);
+                    frame_state.camera_events.push(CameraMove::LookRight);
                 }
                 glfw::WindowEvent::Key(Key::J, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::LookDown);
+                    frame_state.camera_events.push(CameraMove::LookDown);
                 }
                 glfw::WindowEvent::Key(Key::K, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_change.push(CameraMove::LookUp);
+                    frame_state.camera_events.push(CameraMove::LookUp);
                 }
                 _ => {}
             }
@@ -148,7 +149,8 @@ pub struct FrameState {
     pub time: f32,                      // Total time elapsed
     pub resolution: Option<(f32, f32)>, // Width, Height
     pub toggle_projection: bool,
-    pub camera_change: std::vec::Vec<CameraMove>,
+    pub camera_events: std::vec::Vec<CameraMove>,
+    pub window_events: std::vec::Vec<WindowEvents>,
 }
 
 impl FrameState {
@@ -158,7 +160,13 @@ impl FrameState {
             time: glfw.get_time() as f32,
             resolution: None, // Only contains Some() when the screen changes size to avoid sending it
             toggle_projection: false,
-            camera_change: Vec::new(),
+            camera_events: Vec::new(),
+            window_events: Vec::new(),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum WindowEvents {
+    Close,
 }

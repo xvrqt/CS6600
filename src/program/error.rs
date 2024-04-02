@@ -13,6 +13,7 @@ pub enum ProgramError {
     VAODoesNotExist(String),
     VAO(VAOError),
     Window(WindowError),
+    End,
 }
 
 impl std::error::Error for ProgramError {}
@@ -34,6 +35,9 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::VAO(error) => {
                 write!(f, "VAO ERROR: '{}'.\n", error)
+            }
+            ProgramError::End => {
+                write!(f, "Window was closed")
             }
             ProgramError::Window(error) => {
                 write!(f, "Window ERROR: '{}'.\n", error)

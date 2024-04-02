@@ -1,16 +1,23 @@
 // My Libs
-use cs6600::{load::load_obj, GLError, GLProgram};
+use cs6600::{load::load_obj, program::Projection, GLError, GLProgram};
+use ultraviolet::vec::Vec3;
 
 #[allow(non_snake_case)]
 fn main() -> Result<(), GLError> {
     std::env::set_var("RUST_BACKTRACE", "1");
     let mut program = GLProgram::blinn_phong()?;
 
-    let obj = load_obj("./objs/wires.obj")?;
+    let obj = load_obj("./objs/cube.obj")?;
     let _ = program.vao_from_obj("gay", &obj);
-    while program.draw().is_ok() {
-        println!("GAY GIRLS");
-    }
+    let _ = program.add_light(Vec3::new(1.0, 1.0, -1.0), Vec3::new(1.0, 1.0, 1.0));
+    let _ = program.ambient_light(Vec3::new(1.0, 1.0, 1.0), 0.4);
+    // program.use_projection(Projection::Perspective {
+    //     fov: 1.0,
+    //     aspect_ratio: 1.0,
+    //     z_near: -0.1,
+    //     z_far: -100.0,
+    // });
+    while program.draw().is_ok() {}
     //
     // // Use built-in Blinn-Phong Shader
     // let mut program = GLProgram::blinn_phong_shading()?;

@@ -267,6 +267,12 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         }
 
         let frame_events = self.context.process_events();
+        self.camera
+            .update(frame_events.time, &frame_events.camera_events);
+
+        if self.context.window.should_close() {
+            return Err(ProgramError::End);
+        }
 
         // Update the projection if the aspect ratio has changed
         // Toggle projection if P was pressed

@@ -24,7 +24,7 @@ impl Projection {
             Projection::Ortho {
                 side: s,
                 aspect_ratio: ar,
-            } => ultraviolet::projection::orthographic_gl(-s * ar, s, -s, s, -s, s),
+            } => ultraviolet::projection::orthographic_gl(-s * ar, s * ar, -s, s, 0.1, s),
             Projection::Perspective {
                 fov,
                 aspect_ratio,
@@ -45,7 +45,8 @@ impl Projection {
         Projection::Perspective {
             fov: PI / 3.0,
             aspect_ratio: 1.0,
-            z_near: -0.1,
+            // Hate how these are positive instead of negative :s what a terrible convetion tbh
+            z_near: 0.1,
             z_far: 10000.0,
         }
     }
