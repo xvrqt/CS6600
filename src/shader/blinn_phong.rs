@@ -1,37 +1,3 @@
-use super::{Fragment, Shader, Vertex};
-
-// Aliases so we can keep track of what types of shaders we're using
-pub struct BlinnPhongVertexShader<'a>(pub Shader<'a, Vertex>);
-pub struct BlinnPhongFragmentShader<'a>(pub Shader<'a, Fragment>);
-
-// Convenience for constructors that operate on more agnostice types
-impl<'a> From<Shader<'a, Vertex>> for BlinnPhongVertexShader<'a> {
-    fn from(s: Shader<'a, Vertex>) -> BlinnPhongVertexShader<'a> {
-        BlinnPhongVertexShader(s)
-    }
-}
-
-impl<'a> From<Shader<'a, Fragment>> for BlinnPhongFragmentShader<'a> {
-    fn from(s: Shader<'a, Fragment>) -> BlinnPhongFragmentShader<'a> {
-        BlinnPhongFragmentShader(s)
-    }
-}
-
-// Unwrap for when we don't want type checking (like in constructors)
-impl<'a> std::ops::Deref for BlinnPhongVertexShader<'a> {
-    type Target = Shader<'a, Vertex>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a> std::ops::Deref for BlinnPhongFragmentShader<'a> {
-    type Target = Shader<'a, Fragment>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 pub const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
 

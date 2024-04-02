@@ -1,27 +1,30 @@
+use crate::error::GLUtilityError;
+
 // Error type for Shaders
 #[derive(Debug)]
 pub enum ShaderError {
-    SourceParse,
-    SourceCompilation(String),
-    UnknownType,
+    FailedToParseSource(GLUtilityError),
+    FailedToCompileShader(GLUtilityError),
 }
 
-impl std::error::Error for ShaderError {}
+impl std::error::Error for ShaderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ShaderError::FailedToParseSource(error) => Some(error),
+            ShaderError::FailedToCompileShader(error) => Some(error),
+        }
+    }
+}
+
 impl std::fmt::Display for ShaderError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ShaderError::SourceParse => {
-                write!(f, "Failed to convert the shader's source into a c-string.")
+            ShaderError::FailedToParseSource(_) => {
+                write!(f, "Could not parse the shader's source.")
             }
-            ShaderError::SourceCompilation(error_log) => write!(
-                f,
-                "Failed to compile the shader from source.\n{}",
-                error_log
-            ),
-            ShaderError::UnknownType => write!(
-                f,
-                "Could not determine shader type. How did you even get this error. This is a library error.",
-            ),
+            ShaderError::FailedToCompileShader(_) => {
+                write!(f, "Failed to compile the shader from source.",)
+            }
         }
     }
 }

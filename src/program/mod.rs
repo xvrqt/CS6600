@@ -4,6 +4,8 @@
 pub mod error;
 pub use error::ProgramError;
 
+use crate::window::GLWindow;
+
 pub mod camera;
 
 // Programs must attach at least a Vertex and Fragment Shader

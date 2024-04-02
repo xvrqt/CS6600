@@ -2,7 +2,10 @@
 use glfw::{Action, Key};
 
 // Opening a window with an OpenGL conteext
+pub mod error;
+pub use error::GLUtilityError;
 pub mod window;
+
 // Linking shaders to crete a GL Program
 pub mod program;
 pub use program::GLProgram;
@@ -102,6 +105,7 @@ pub enum GLError {
     Uniform(uniform::UniformError),
     VAO(vao::VAOError),
     Load(load::LoadError),
+    Other(GLUtilityError),
 }
 
 impl std::error::Error for GLError {}
@@ -125,6 +129,9 @@ impl std::fmt::Display for GLError {
             }
             GLError::Load(error) => {
                 write!(f, "GL Program File Loading Error:\n{}", error.to_string())
+            }
+            GLError::Other(error) => {
+                write!(f, "GL Program Error:\n{}", error.to_string())
             }
         }
     }
