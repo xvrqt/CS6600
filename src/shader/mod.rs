@@ -7,9 +7,10 @@ type Result<T> = std::result::Result<T, error::ShaderError>;
 // Import our built-in shader types
 pub mod blinn_phong;
 
+// OpenGL Types
 use gl::types::*;
 
-// We're calling into the user's OpenGL Library
+// We're calling into the user's OpenGL Library, so we need to work with raw strings and pointers
 use std::ffi::CString;
 use std::ptr;
 use std::str;
@@ -19,18 +20,60 @@ use std::str;
 pub struct VertexShader;
 #[derive(Debug)]
 pub struct FragmentShader;
+#[derive(Debug)]
+pub struct GeometryShader;
+#[derive(Debug)]
+pub struct TesselationShader;
 
-// All shaders must have a defined type corresponding to the part of the graphics
-// pipeline they operate on. Making them an Enum also provides easy matching,
-// and prevents accidentally assigning a Geometry Shader to the Vertex Shader
+// All shaders must have a defined type corresponding to the part of the graphics pipeline they
+// operate on, and prevents accidentally assigning a Geometry Shader to the Vertex Shader
 #[derive(Debug)]
 pub struct Shader<'a, Type> {
     pub(crate) id: gl::types::GLuint,
     // If we have a 'static str as our shader code (e.g. when using a built-in shader), then we
-    // skip an allocation.
+    // skip an allocation. Not used, but pretty sure I'll use it eventually lol. #YAGNI
     #[allow(dead_code)]
-    pub(crate) source: std::borrow::Cow<'a, str>,
+    source: std::borrow::Cow<'a, str>,
     _pd: std::marker::PhantomData<Type>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ShaderPipeline<'a> {
+    pub(crate) vertex_shader: Shader<'a, VertexShader>,
+    pub(crate) fragment_shader: Shader<'a, FragmentShader>,
+    pub(crate) geometry_shader: Option<Shader<'a, GeometryShader>>,
+    pub(crate) tessellation_shader: Option<Shader<'a, TesselationShader>>,
+}
+
+impl<'a> ShaderPipeline<'a> {
+    pub(crate) fn new(
+        program_id: GLuint,
+        vertex_shader: Shader<'a, VertexShader>,
+        fragment_shader: Shader<'a, FragmentShader>,
+        geometry_shader: Option<Shader<'a, GeometryShader>>,
+        tessellation_shader: Option<Shader<'a, TesselationShader>>,
+    ) -> Result<Self> {
+        unsafe {
+            gl::AttachShader(program_id, vertex_shader.id);
+            gl::AttachShader(program_id, fragment_shader.id);
+
+            if let Some(ref geometry_shader) = geometry_shader {
+                gl::AttachShader(program_id, geometry_shader.id);
+            }
+            if let Some(ref tessellation_shader) = tessellation_shader {
+                gl::AttachShader(program_id, tessellation_shader.id);
+            }
+
+            gl::LinkProgram(program_id);
+        }
+        // Check that all went well, and return a new ShaderPipline if so
+        link_shaders_success(program_id).map(|_| ShaderPipeline {
+            vertex_shader,
+            fragment_shader,
+            geometry_shader,
+            tessellation_shader,
+        })
+    }
 }
 
 // Different types of shaders. Vertex, Fragment are mandatory
@@ -114,6 +157,42 @@ impl<'a, Type> Drop for Shader<'a, Type> {
     fn drop(&mut self) -> () {
         unsafe {
             gl::DeleteShader(self.id);
+        }
+    }
+}
+
+// Helper function that checks if linking the shaders to the program was a success
+pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<()> {
+    let mut success = gl::FALSE as GLint;
+    unsafe {
+        gl::GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
+        if success != gl::TRUE as GLint {
+            // Determine the log's length
+            let mut length = 0 as GLint;
+            gl::GetShaderiv(program_id, gl::INFO_LOG_LENGTH, &mut length);
+            let log_length: usize = length.try_into().map_err(|_| {
+                ShaderError::FailedToLinkShaders(GLUtilityError::CouldNotCreateErrorLog)
+            })?;
+
+            // Set up a buffer to receive the log
+            let mut error_log = Vec::<u8>::with_capacity(log_length);
+            if log_length > 0 {
+                error_log.set_len(log_length - 1);
+            } // Don't read the NULL terminator
+
+            gl::GetProgramInfoLog(
+                program_id,
+                512,
+                std::ptr::null_mut(),
+                error_log.as_mut_ptr() as *mut GLchar,
+            );
+
+            // Return the error log and exit
+            Err(ShaderError::FailedToLinkShaders(GLUtilityError::ErrorLog(
+                std::str::from_utf8(&error_log).unwrap().into(),
+            )))
+        } else {
+            Ok(())
         }
     }
 }

@@ -1,5 +1,3 @@
-use user_error::UFE;
-
 #[derive(Debug)]
 pub enum WindowError {
     FailedToInitializeGLFW(glfw::InitError),
@@ -34,6 +32,9 @@ impl From<WindowError> for crate::GLError {
     }
 }
 
-// Pretty Print - It's possible we error out before being a part of a GLProgram. This is because we
-// need to initialize an OpenGL context, and pass a Window into the contructor of GLProgram
-impl UFE for WindowError {}
+// Allows for painless casting into our crate's rollup error
+impl From<WindowError> for crate::program::ProgramError {
+    fn from(error: WindowError) -> Self {
+        crate::program::ProgramError::Window(error)
+    }
+}

@@ -3,11 +3,12 @@ use glfw::{Action, Key};
 
 // Opening a window with an OpenGL conteext
 pub mod error;
-pub use error::GLUtilityError;
+pub use error::{GLError, GLUtilityError};
 pub mod window;
 
 // Linking shaders to crete a GL Program
 pub mod program;
+pub use program::builder;
 pub use program::GLProgram;
 
 pub use program::camera::CameraMove;
@@ -94,45 +95,4 @@ pub fn process_events(
         }
     }
     Ok(frame_state)
-}
-
-// Our Errors will all roll up into this error type for easy handling
-#[derive(Debug)]
-pub enum GLError {
-    Program(program::ProgramError),
-    Shader(shader::ShaderError),
-    Window(window::WindowError),
-    Uniform(uniform::UniformError),
-    VAO(vao::VAOError),
-    Load(load::LoadError),
-    Other(GLUtilityError),
-}
-
-impl std::error::Error for GLError {}
-impl std::fmt::Display for GLError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            GLError::Program(error) => {
-                write!(f, "GL Program Error:\n{}", error.to_string())
-            }
-            GLError::Shader(error) => {
-                write!(f, "GL Shader Error:\n{}", error.to_string())
-            }
-            GLError::Window(error) => {
-                write!(f, "GL Window Error:\n{}", error.to_string())
-            }
-            GLError::Uniform(error) => {
-                write!(f, "GL Uniform Assignment Error:\n{}", error.to_string())
-            }
-            GLError::VAO(error) => {
-                write!(f, "GL Attribute Creation Error:\n{}", error.to_string())
-            }
-            GLError::Load(error) => {
-                write!(f, "GL Program File Loading Error:\n{}", error.to_string())
-            }
-            GLError::Other(error) => {
-                write!(f, "GL Program Error:\n{}", error.to_string())
-            }
-        }
-    }
 }

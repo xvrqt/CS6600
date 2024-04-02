@@ -5,6 +5,7 @@ use crate::error::GLUtilityError;
 pub enum ShaderError {
     FailedToParseSource(GLUtilityError),
     FailedToCompileShader(GLUtilityError),
+    FailedToLinkShaders(GLUtilityError),
 }
 
 impl std::error::Error for ShaderError {
@@ -12,6 +13,7 @@ impl std::error::Error for ShaderError {
         match self {
             ShaderError::FailedToParseSource(error) => Some(error),
             ShaderError::FailedToCompileShader(error) => Some(error),
+            ShaderError::FailedToLinkShaders(error) => Some(error),
         }
     }
 }
@@ -24,6 +26,9 @@ impl std::fmt::Display for ShaderError {
             }
             ShaderError::FailedToCompileShader(_) => {
                 write!(f, "Failed to compile the shader from source.",)
+            }
+            ShaderError::FailedToLinkShaders(_) => {
+                write!(f, "Failed to link shaders to the GLProgram")
             }
         }
     }

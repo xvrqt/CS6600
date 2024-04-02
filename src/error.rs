@@ -1,5 +1,51 @@
+// Library Error Types
+pub use crate::{
+    load::LoadError, program::ProgramError, shader::ShaderError, uniform::UniformError,
+    vao::VAOError, window::WindowError,
+};
+// Make error logs, and shader source errors pretty and helpful
 use bat::PrettyPrinter;
-use user_error::UFE;
+
+// Our Errors will all roll up into this error type for easy handling
+#[derive(Debug)]
+pub enum GLError {
+    Program(ProgramError),
+    Shader(ShaderError),
+    Window(WindowError),
+    Uniform(UniformError),
+    VAO(VAOError),
+    Load(LoadError),
+    Other(GLUtilityError),
+}
+
+impl std::error::Error for GLError {}
+impl std::fmt::Display for GLError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GLError::Program(error) => {
+                write!(f, "GL Program Error:\n{}", error.to_string())
+            }
+            GLError::Shader(error) => {
+                write!(f, "GL Shader Error:\n{}", error.to_string())
+            }
+            GLError::Window(error) => {
+                write!(f, "GL Window Error:\n{}", error.to_string())
+            }
+            GLError::Uniform(error) => {
+                write!(f, "GL Uniform Assignment Error:\n{}", error.to_string())
+            }
+            GLError::VAO(error) => {
+                write!(f, "GL Attribute Creation Error:\n{}", error.to_string())
+            }
+            GLError::Load(error) => {
+                write!(f, "GL Program File Loading Error:\n{}", error.to_string())
+            }
+            GLError::Other(error) => {
+                write!(f, "GL Program Error:\n{}", error.to_string())
+            }
+        }
+    }
+}
 
 // Some errors are similar across stucturs, such as failing to find an index, or converting into a
 // CString or into a pointer. Standardizing the messages using these errors.
@@ -25,12 +71,15 @@ impl std::fmt::Display for GLUtilityError {
                 write!(f, "Failed to convert the string: \"{}...\" to a CString", s)
             }
             GLUtilityError::ErrorLog(log) => {
-                let log = PrettyPrinter::new()
-                    .input_from_bytes(log.as_bytes())
-                    .language("glsl")
-                    .print()
-                    .unwrap_or(log);
-                write!(f, "{}", log)
+                let mut pp = PrettyPrinter::new();
+                pp.input_from_bytes(log.as_bytes());
+                pp.language("glsl");
+
+                if let Err(_) = pp.print() {
+                    write!(f, "{}", log)
+                } else {
+                    write!(f, "")
+                }
             }
             GLUtilityError::CouldNotCreateErrorLog => {
                 write!(
@@ -48,7 +97,3 @@ impl From<GLUtilityError> for crate::GLError {
         crate::GLError::Other(error)
     }
 }
-
-// Pretty Print - It's possible we error out before being a part of a GLProgram. This is because we
-// need to initialize an OpenGL context, and pass a Window into the contructor of GLProgram
-impl UFE for GLUtilityError {}

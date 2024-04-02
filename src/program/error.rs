@@ -1,5 +1,6 @@
 use crate::shader::error::ShaderError;
 use crate::vao::VAOError;
+use crate::window::WindowError;
 
 // Error for GLProgram
 #[derive(Debug)]
@@ -11,6 +12,7 @@ pub enum ProgramError {
     VAOAlreadyExists(String),
     VAODoesNotExist(String),
     VAO(VAOError),
+    Window(WindowError),
 }
 
 impl std::error::Error for ProgramError {}
@@ -32,6 +34,9 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::VAO(error) => {
                 write!(f, "VAO ERROR: '{}'.\n", error)
+            }
+            ProgramError::Window(error) => {
+                write!(f, "Window ERROR: '{}'.\n", error)
             }
             ProgramError::VAOAlreadyExists(name) => {
                 write!(
