@@ -54,11 +54,13 @@ pub enum GLUtilityError {
     FailedToConvertToCString(String),
     ErrorLog(String),
     CouldNotCreateErrorLog,
+    CouldNotOpenFile(String, std::io::Error),
 }
 
 impl std::error::Error for GLUtilityError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::CouldNotOpenFile(_, io_error) => Some(io_error),
             _ => None,
         }
     }
@@ -69,6 +71,9 @@ impl std::fmt::Display for GLUtilityError {
             GLUtilityError::FailedToConvertToCString(source_string) => {
                 let s = &source_string[0..15];
                 write!(f, "Failed to convert the string: \"{}...\" to a CString", s)
+            }
+            GLUtilityError::CouldNotOpenFile(path, error) => {
+                write!(f, "Failed to open the file at path: \"{}\"", path)
             }
             GLUtilityError::ErrorLog(log) => {
                 let mut pp = PrettyPrinter::new();

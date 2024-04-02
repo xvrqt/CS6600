@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 #[allow(unused_imports)]
+// Linear Algebra types for transforming and creating matrices.
 use ultraviolet::{
     mat::{Mat3, Mat4},
     vec::{Vec2, Vec3, Vec4},
 };
 
+// For arrays, not another type of Vector ->
 use std::vec::Vec;
 
 const X_UNIT: Vec3 = Vec3::new(1.0, 0.0, 0.0);
@@ -12,14 +14,20 @@ const Y_UNIT: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 const Z_UNIT: Vec3 = Vec3::new(0.0, 0.0, 1.0);
 const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 const CAMERA_SPEED: f32 = 25.0;
+const PI: f32 = std::f32::consts::PI;
 
 #[derive(Debug)]
 pub struct Camera {
-    pub position: Vec3,
-    // Camera Z inverse
+    // Where the camera is in world-space
+    position: Vec3,
+    // Where the camera is looking in world-space. This is the inverse of the unit Z vector of its
+    // view space
     direction: Vec3,
+    // Unit Y of View Space
     camera_y: Vec3,
+    // Unit X of View Space
     camera_x: Vec3,
+    // Cached View Matrix
     view_matrix: Mat4,
     pitch: f32,
     yaw: f32,
@@ -30,6 +38,8 @@ impl Camera {
         Self::look_at(ORIGIN, Z_UNIT)
     }
 
+    // Generates a *view* matrix as if the virtual camera were at position and directed at the
+    // target point
     pub fn look_at(position: Vec3, target: Vec3) -> Self {
         let direction = (position - target).normalized();
         let (camera_x, camera_y) = Self::find_x_y_axes(&direction);

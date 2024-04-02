@@ -6,6 +6,7 @@ pub enum ShaderError {
     FailedToParseSource(GLUtilityError),
     FailedToCompileShader(GLUtilityError),
     FailedToLinkShaders(GLUtilityError),
+    FailedToLoadSource(GLUtilityError),
 }
 
 impl std::error::Error for ShaderError {
@@ -14,6 +15,7 @@ impl std::error::Error for ShaderError {
             ShaderError::FailedToParseSource(error) => Some(error),
             ShaderError::FailedToCompileShader(error) => Some(error),
             ShaderError::FailedToLinkShaders(error) => Some(error),
+            ShaderError::FailedToLoadSource(error) => Some(error),
         }
     }
 }
@@ -28,7 +30,10 @@ impl std::fmt::Display for ShaderError {
                 write!(f, "Failed to compile the shader from source.",)
             }
             ShaderError::FailedToLinkShaders(_) => {
-                write!(f, "Failed to link shaders to the GLProgram")
+                write!(f, "Failed to link shaders to the GLProgram.")
+            }
+            ShaderError::FailedToLoadSource(_) => {
+                write!(f, "Failed to load the shader's source code.")
             }
         }
     }

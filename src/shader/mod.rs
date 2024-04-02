@@ -196,3 +196,17 @@ pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<()> {
         }
     }
 }
+
+// Loads a shader from a path, nothing special
+pub fn load_shader<P>(path: P) -> Result<String>
+where
+    P: AsRef<std::path::Path>,
+{
+    let path = path.as_ref();
+    std::fs::read_to_string(path).map_err(|io_error| {
+        ShaderError::FailedToLoadSource(GLUtilityError::CouldNotOpenFile(
+            path.to_string_lossy().to_string(),
+            io_error,
+        ))
+    })
+}

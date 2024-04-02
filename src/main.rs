@@ -1,21 +1,16 @@
 // My Libs
-use cs6600::{load::load_obj, process_events, window, GLError, GLProgram};
-
-// Window Creation + Control
-use glfw::Context;
-use ultraviolet::Mat2;
-// Linear Algebra Crate
-#[allow(unused_imports)]
-use ultraviolet::{
-    mat::{Mat3, Mat4},
-    vec::{Vec2, Vec3, Vec4},
-};
+use cs6600::{load::load_obj, GLError, GLProgram};
 
 #[allow(non_snake_case)]
 fn main() -> Result<(), GLError> {
+    std::env::set_var("RUST_BACKTRACE", "1");
     let mut program = GLProgram::blinn_phong()?;
 
-    // let obj = load_obj("./objs/wires.obj")?;
+    let obj = load_obj("./objs/wires.obj")?;
+    let _ = program.vao_from_obj("gay", &obj);
+    while program.draw().is_ok() {
+        println!("GAY GIRLS");
+    }
     //
     // // Use built-in Blinn-Phong Shader
     // let mut program = GLProgram::blinn_phong_shading()?;
@@ -28,7 +23,6 @@ fn main() -> Result<(), GLError> {
     // program.ambient_light(Vec3::new(1.0, 1.0, 1.0), 0.15)?;
     // // program.set_ortho(3.0, -10.0, 10.0);
     // program.use_perspective();
-    // let _ = program.vao_from_obj("gay", &obj);
     //
     // // In case we have more than one program, render all of them
     // let mut last_frame = 0.0;
@@ -61,5 +55,6 @@ fn main() -> Result<(), GLError> {
     //     window.swap_buffers();
     //     glfw.poll_events();
     // }
+    println!("GAY GIRLS");
     Ok(())
 }

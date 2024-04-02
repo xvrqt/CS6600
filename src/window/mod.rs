@@ -1,4 +1,7 @@
 // Import our Error Type
+pub use crate::program::camera::CameraMove;
+use crate::GLError;
+use glfw::{Action, Key};
 pub mod error;
 pub use error::WindowError;
 
@@ -91,5 +94,71 @@ impl GLWindow {
             GL_MAJOR_VERSION,
             GL_MINOR_VERSION,
         )
+    }
+
+    // Used in the render loop to set the FrameState
+    pub fn process_events(&mut self) -> FrameState {
+        let mut frame_state = FrameState::new(&self.glfw);
+        for (_, event) in glfw::flush_messages(&self.events) {
+            match event {
+                // Update Viewport, and Resolution Shader Uniform
+                glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
+                    frame_state.resolution = Some((width as f32, height as f32));
+                    gl::Viewport(0, 0, width, height)
+                },
+                glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
+                    self.window.set_should_close(true)
+                }
+                glfw::WindowEvent::Key(Key::P, _, Action::Press, _) => {
+                    frame_state.toggle_projection = true;
+                }
+                glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::Forwards);
+                }
+                glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::Backwards);
+                }
+                glfw::WindowEvent::Key(Key::Q, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::Left);
+                }
+                glfw::WindowEvent::Key(Key::E, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::Right);
+                }
+                glfw::WindowEvent::Key(Key::A | Key::H, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::LookLeft);
+                }
+                glfw::WindowEvent::Key(Key::D | Key::L, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::LookRight);
+                }
+                glfw::WindowEvent::Key(Key::J, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::LookDown);
+                }
+                glfw::WindowEvent::Key(Key::K, _, Action::Press | Action::Repeat, _) => {
+                    frame_state.camera_change.push(CameraMove::LookUp);
+                }
+                _ => {}
+            }
+        }
+        frame_state
+    }
+}
+
+// This is used by GLPrograms to update their magic variables
+pub struct FrameState {
+    pub time: f32,                      // Total time elapsed
+    pub resolution: Option<(f32, f32)>, // Width, Height
+    pub toggle_projection: bool,
+    pub camera_change: std::vec::Vec<CameraMove>,
+}
+
+impl FrameState {
+    pub fn new(glfw: &glfw::Glfw) -> FrameState {
+        FrameState {
+            // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
+            time: glfw.get_time() as f32,
+            resolution: None, // Only contains Some() when the screen changes size to avoid sending it
+            toggle_projection: false,
+            camera_change: Vec::new(),
+        }
     }
 }
