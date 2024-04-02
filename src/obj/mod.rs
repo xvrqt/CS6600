@@ -1,9 +1,6 @@
 use obj;
 use ultraviolet::vec::{Vec2, Vec3, Vec4};
 
-use crate::vao::SetAttributePointer;
-use crate::vao::VAOError;
-
 // Convert the parser's Obj type to our own.
 // Theirs uses an Array of Structs (AoS) [bad]
 // Ours uses a Struct of Arrays (SoA) [good]
@@ -38,11 +35,68 @@ impl From<obj::Obj<obj::TexturedVertex, u16>> for Obj {
             uv.push(tex_coord);
         }
 
+        let indices = o.indices.iter().map(|e| *e as u16).collect();
         Obj {
             vertices,
             normals,
             uv,
-            indices: o.indices,
+            indices,
+        }
+    }
+}
+
+impl From<wavefront_obj::obj::Object> for Obj {
+    fn from(o: wavefront_obj::obj::Object) -> Self {
+        // For look ups
+        let old_normals = o.normals;
+        let old_uv = o.tex_vertices;
+        println!("old normals length: {}", old_normals.len());
+        println!("old uv length: {}", old_uv.len());
+        println!("old vertices length: {}", o.vertices.len());
+        println!("num triangles length: {}", o.geometry[0].shapes.len());
+        let num_verts = o.vertices.len();
+
+        // Generating these from the object info
+        let mut uv = Vec::new();
+        uv.resize(num_verts, Vec2::new(0.0, 0.0));
+        let mut normals = Vec::new();
+        normals.resize(num_verts, Vec3::new(0.0, 0.0, 0.0));
+        let mut indices = Vec::new();
+
+        for shape in o.geometry[0].shapes.iter() {
+            let triangle_points = match shape.primitive {
+                wavefront_obj::obj::Primitive::Triangle(a, b, c) => vec![a, b, c],
+                _ => panic!(),
+            };
+
+            for point in triangle_points {
+                if let (v_index, Some(t_index), Some(n_index)) = point {
+                    // Vertex positions stay the same, "are canonical"
+                    indices.push(v_index as u16);
+
+                    // Look up the values in the corresponding arrays and remap them
+                    let normal = old_normals[n_index];
+                    let normal = Vec3::new(normal.x as f32, normal.y as f32, normal.z as f32);
+                    normals[v_index] = normal;
+
+                    let t = old_uv[t_index];
+                    let t = Vec2::new(t.u as f32, t.v as f32);
+                    uv[v_index] = t;
+                }
+            }
+        }
+
+        // The indices of these don't change so just convert them all in to the correct type
+        let vertices = o
+            .vertices
+            .iter()
+            .map(|e| Vec4::new(e.x as f32, e.y as f32, e.z as f32, 1.0))
+            .collect();
+        Obj {
+            vertices,
+            normals,
+            uv,
+            indices,
         }
     }
 }

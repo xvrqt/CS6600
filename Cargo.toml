@@ -11,3 +11,4 @@ glfw = { version = "0.55.0", default-features = false, features = ["wayland"]}
 ultraviolet = "0.9.2"
 bitflags = "2.5.0"
 obj-rs = "0.7.1"
+wavefront_obj = "10.0.0"

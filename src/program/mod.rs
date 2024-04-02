@@ -457,10 +457,10 @@ impl<'a> GLProgram<BlinnPhongVertexShader<'a>, BlinnPhongFragmentShader<'a>> {
         // self.perp = Projection::Perspective(l, r, t, b, -near_plane, f - near_plane);
         // self.perspective_projection_matrix = self.perp.mat();
 
-        // let radius = 7.0;
-        // let speed = 0.5;
-        // let cam_x = (frame_events.time * speed).sin() * radius;
-        // let cam_z = (frame_events.time * speed).cos() * radius;
+        let radius = 25.0;
+        let speed = 0.5;
+        let cam_x = (frame_events.time * speed).sin() * radius;
+        let cam_z = (frame_events.time * speed).cos() * radius;
         // self.camera = Camera::look_at(Vec3::new(cam_x, 0.0, cam_z), ORIGINV3);
 
         // Toggle projection if P was pressed

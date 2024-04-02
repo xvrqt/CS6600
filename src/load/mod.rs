@@ -18,11 +18,27 @@ pub fn load_obj<P>(path: P) -> Result<Obj, LoadError>
 where
     P: AsRef<Path>,
 {
-    let file = File::open(path.as_ref())?;
-    let input = BufReader::new(file);
-    // We plan to import positions, normals, and UV coordinates
-    let obj: obj::Obj<obj::TexturedVertex, u16> = obj::load_obj(input)?;
-    Ok(obj.into())
+    let file = fs::read_to_string(path.as_ref())?;
+    let o = wavefront_obj::obj::parse(file).unwrap();
+    let g = o.objects.len();
+    println!("num objects: {}", g);
+    let g = o.objects[0].geometry.len();
+    println!("num geoms: {}", g);
+
+    let obj = o.objects[0].clone();
+    let gay: crate::obj::Obj = obj.into();
+    // println!("{:#?}", gay);
+    Ok(gay)
+
+    // let file = File::open(path.as_ref())?;
+    // let input = BufReader::new(file);
+    // // We plan to import positions, normals, and UV coordinates
+    // let obj: obj::Obj<obj::TexturedVertex, u16> = obj::load_obj(input)?;
+    //
+    // let obj: crate::obj::Obj = obj.into();
+    // println!("{:#?}", obj);
+    //
+    // Ok(obj)
 }
 
 // Loads a shader from a path, nothing special

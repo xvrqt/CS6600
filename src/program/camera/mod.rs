@@ -11,7 +11,7 @@ const X_UNIT: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 const Y_UNIT: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 const Z_UNIT: Vec3 = Vec3::new(0.0, 0.0, 1.0);
 const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-const CAMERA_SPEED: f32 = 15.0;
+const CAMERA_SPEED: f32 = 25.0;
 
 #[derive(Debug)]
 pub struct Camera {
@@ -27,10 +27,10 @@ pub struct Camera {
 
 impl Camera {
     pub(crate) fn new() -> Self {
-        Self::look_at(ORIGIN, -Z_UNIT)
+        Self::look_at(ORIGIN, Z_UNIT)
     }
 
-    pub(crate) fn look_at(position: Vec3, target: Vec3) -> Self {
+    pub fn look_at(position: Vec3, target: Vec3) -> Self {
         let direction = (position - target).normalized();
         let (camera_x, camera_y) = Self::find_x_y_axes(&direction);
         let view_matrix = Self::rotation_matrix(camera_x, camera_y, direction).transposed()
@@ -42,7 +42,7 @@ impl Camera {
             camera_y,
             view_matrix,
             pitch: 0.0,
-            yaw: -90.0,
+            yaw: 90.0,
         }
     }
 

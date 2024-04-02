@@ -81,16 +81,20 @@ pub const FRAGMENT_SHADER_SOURCE: &str = r#"
 
     void main() {
         // Material Properties
-        vec4 kd = vec4(0.5, 0.1, 0.9, 1.0);
+        vec4 kd = vec4(0.9, 0.9, 0.9, 1.0);
 
         // Loop accumulates color from lights sources in this vec
         vec4 final_color = vec4(0,0,0,1);
         for(uint i = 0; i < num_lights; i++) {
             vec4 light_color = lights[i].color;
-            vec3 light_direction = normalize(-vec3(mv * lights[i].position));
+            // Why don't we have to transform the light location with 'mv' ?
+            vec4 new_light_pos = mv * lights[i].position;
+            new_light_pos = new_light_pos - mv_point;
+            new_light_pos = normalize(-new_light_pos);
+            vec3 light_direction = vec3(new_light_pos);
 
             // Geometry Term
-            float cos_theta = dot(mv_normal, light_direction);
+            float cos_theta = dot(mv_normal, vec3(light_direction));
             float geometry_term = max(cos_theta, 0.0);
 
             // Diffuse Term
