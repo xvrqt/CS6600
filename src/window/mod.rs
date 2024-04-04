@@ -1,7 +1,8 @@
 // Import our Error Type
-pub use crate::program::camera::CameraMove;
-use crate::GLError;
+pub use crate::program::camera::CameraEvent;
+use crate::{program::camera::Direction, GLError};
 use glfw::{Action, Key};
+use ultraviolet::vec::Vec3;
 pub mod error;
 pub use error::WindowError;
 
@@ -35,6 +36,7 @@ pub struct GLWindow {
     pub(crate) glfw: GLFW,
     pub(crate) window: Window,
     pub(crate) events: WindowGLFWEvents,
+    pub(crate) frame_state: FrameState,
 }
 
 impl GLWindow {
@@ -75,12 +77,17 @@ impl GLWindow {
                 window.make_current();
                 // Notify us when a keyboard button is pressed
                 window.set_key_polling(true);
-                // Notify us when the window size (and therefore the frame buffer) changes
+                // Notify us of certain events
+                window.set_scroll_polling(true);
+                window.set_cursor_pos_polling(true);
+                window.set_mouse_button_polling(true);
                 window.set_framebuffer_size_polling(true);
+                let frame_state = FrameState::new(&glfw);
                 Ok(GLWindow {
                     glfw,
                     window,
                     events,
+                    frame_state,
                 })
             })
     }
@@ -97,69 +104,148 @@ impl GLWindow {
     }
 
     // Used in the render loop to set the FrameState
-    pub fn process_events(&mut self) -> FrameState {
-        let mut frame_state = FrameState::new(&self.glfw);
+    pub fn process_events(&mut self) -> () {
+        // Get Updated Time
+        let current_time = self.glfw.get_time() as f32;
+        let dt = current_time - self.frame_state.time;
+        self.frame_state.time = current_time;
+        self.frame_state.delta_t = dt;
+
+        // Clear Event Queues
+        self.frame_state.camera_events.clear();
+        self.frame_state.window_events.clear();
+
+        let (width, height) = self.window.get_size();
+        let aspect_ratio = width as f32 / height as f32;
+        let (x, y) = self.window.get_cursor_pos();
+        let u = (((x as f32 / width as f32) * 2.0) - 1.0) * aspect_ratio;
+        let v = -(((y as f32 / height as f32) * 2.0) - 1.0);
+        // println!("u: {}, v: {}", u, v);
+
+        // Don't rotate if the mouse is near the center
+        if u.abs() > 0.2 || v.abs() > 0.2 {
+            // self.frame_state
+            //     .camera_events
+            //     .push(CameraEvent::Rotation(Direction::Vector(
+            //         u - 0.2,
+            //         v - 0.2,
+            //         0.0,
+            //     )));
+        }
+
+        if self.frame_state.mm_valid {
+            let (ou, ov) = self.frame_state.r_cursor_position;
+            let x = u - ou;
+            let y = v - ov;
+            println!("x: {}, y: {}", x, y);
+            self.frame_state
+                .camera_events
+                .push(CameraEvent::Movement(Direction::Vector(x, y, 0.0)));
+            self.frame_state.r_cursor_position = (u, v);
+        }
+
         for (_, event) in glfw::flush_messages(&self.events) {
             match event {
                 // Update Viewport, and Resolution Shader Uniform
                 glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
-                    frame_state.resolution = Some((width as f32, height as f32));
+                    self.frame_state.resolution = Some((width as f32, height as f32));
+                    self.frame_state
+                        .camera_events
+                        .push(CameraEvent::Projection(Direction::Ratio(aspect_ratio)));
                     gl::Viewport(0, 0, width, height)
                 },
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     self.window.set_should_close(true);
-                    frame_state.window_events.push(WindowEvents::Close);
+                    self.frame_state.window_events.push(WindowEvent::Close);
                 }
                 glfw::WindowEvent::Key(Key::P, _, Action::Press, _) => {
-                    frame_state.toggle_projection = true;
+                    self.frame_state.toggle_projection = true;
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::Forwards);
+                    self.frame_state
+                        .camera_events
+                        // .push(CameraEvent::Movement(Direction::Forwards(dt)));
+                        .push(CameraEvent::Rotation(Direction::Up));
                 }
                 glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::Backwards);
+                    self.frame_state
+                        .camera_events
+                        .push(CameraEvent::Rotation(Direction::Down));
                 }
-                glfw::WindowEvent::Key(Key::Q, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::Left);
+                glfw::WindowEvent::Key(Key::A, _, Action::Press | Action::Repeat, _) => {
+                    self.frame_state
+                        .camera_events
+                        .push(CameraEvent::Rotation(Direction::Left(dt)));
                 }
-                glfw::WindowEvent::Key(Key::E, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::Right);
+                glfw::WindowEvent::Key(Key::D, _, Action::Press | Action::Repeat, _) => {
+                    self.frame_state
+                        .camera_events
+                        .push(CameraEvent::Rotation(Direction::Right(dt)));
                 }
-                glfw::WindowEvent::Key(Key::A | Key::H, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::LookLeft);
+                glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Press, _) => {
+                    self.frame_state.r_cursor_position = (u, v);
+                    self.frame_state.mm_valid = true;
+                    println!("gay");
                 }
-                glfw::WindowEvent::Key(Key::D | Key::L, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::LookRight);
+                glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Release, _) => {
+                    self.frame_state.mm_valid = false;
                 }
-                glfw::WindowEvent::Key(Key::J, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::LookDown);
+                glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Repeat, _) => {
+                    // frame
                 }
-                glfw::WindowEvent::Key(Key::K, _, Action::Press | Action::Repeat, _) => {
-                    frame_state.camera_events.push(CameraMove::LookUp);
+                glfw::WindowEvent::Key(Key::C, _, Action::Press | Action::Repeat, _) => {
+                    self.frame_state
+                        .camera_events
+                        .push(CameraEvent::Movement(Direction::Center));
+                }
+                glfw::WindowEvent::Key(Key::F, _, Action::Press | Action::Repeat, _) => {
+                    self.frame_state
+                        .camera_events
+                        .push(CameraEvent::Movement(Direction::Flip));
+                }
+                glfw::WindowEvent::Scroll(_, y) => {
+                    let y = y as f32;
+                    if y > 0.0 {
+                        self.frame_state
+                            .camera_events
+                            .push(CameraEvent::Movement(Direction::Forwards(dt)));
+
+                        // .push(CameraEvent::Projection(Direction::In(y)))
+                    } else {
+                        self.frame_state
+                            .camera_events
+                            .push(CameraEvent::Movement(Direction::Backwards(dt)));
+                        // .push(CameraEvent::Projection(Direction::Out(y)))
+                    }
                 }
                 _ => {}
             }
         }
-        frame_state
     }
 }
 
 // This is used by GLPrograms to update their magic variables
+#[derive(Debug)]
 pub struct FrameState {
     pub time: f32,                      // Total time elapsed
+    pub delta_t: f32,                   // Time since the previous frame
     pub resolution: Option<(f32, f32)>, // Width, Height
     pub toggle_projection: bool,
-    pub camera_events: std::vec::Vec<CameraMove>,
-    pub window_events: std::vec::Vec<WindowEvents>,
+    pub r_cursor_position: (f32, f32),
+    pub mm_valid: bool,
+    pub camera_events: std::vec::Vec<CameraEvent>,
+    pub window_events: std::vec::Vec<WindowEvent>,
 }
 
 impl FrameState {
-    pub fn new(glfw: &glfw::Glfw) -> FrameState {
+    fn new(glfw: &glfw::Glfw) -> FrameState {
         FrameState {
-            // time: if let Ok(elapsed) = time.elapsed() { elapsed.as_secs_f32() } else { 0.0 },
             time: glfw.get_time() as f32,
-            resolution: None, // Only contains Some() when the screen changes size to avoid sending it
+            delta_t: 0.0,
+            resolution: None, // Only contains Some() when the screen changes size to avoid needless recalculations
             toggle_projection: false,
+            r_cursor_position: (0.0, 0.0),
+            mm_valid: false,
             camera_events: Vec::new(),
             window_events: Vec::new(),
         }
@@ -167,6 +253,6 @@ impl FrameState {
 }
 
 #[derive(Debug)]
-pub enum WindowEvents {
+pub enum WindowEvent {
     Close,
 }

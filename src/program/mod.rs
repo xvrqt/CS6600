@@ -65,7 +65,6 @@ pub struct GLProgram<'a, Type> {
     // OpenGL Shaders, e.g. vertex, fragment, et al.
     shaders: ShaderPipeline<'a>,
     camera: Camera,
-    projection: Projection,
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
     // List of uniforms we update automagically for the caller
@@ -86,11 +85,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {}
 
 // Functions commong to all GLProgram types
 impl<'a, Any> GLProgram<'a, Any> {
-    // Update the Programs Projection Matrix
-    pub fn use_projection(&mut self, projection: Projection) -> () {
-        self.projection = projection;
-    }
-
     // Sets a uniform variable at the location
     pub fn set_uniform<S, Type>(&self, name: S, mut value: Type) -> Result<()>
     where
@@ -256,23 +250,30 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Set OpenGL State for this Program
         unsafe {
             gl::UseProgram(self.id);
+            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl::Enable(gl::DEPTH_TEST);
             // gl::Enable(gl::BLEND);
             // gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
             // gl::BlendFunc(gl::ONE, gl::ONE);
-            gl::Enable(gl::DEPTH_TEST);
             // gl::DepthFunc(gl::ALWAYS);
             // gl::CullFace(gl::BACK);
-            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        let frame_events = self.context.process_events();
-        self.camera
-            .update(frame_events.time, &frame_events.camera_events);
-
+        // Sets up 'self.context.frame_state' based on polled events
+        self.context.process_events();
+        // Check if we should exit
         if self.context.window.should_close() {
             return Err(ProgramError::End);
         }
+
+        // Update our camera based off of keyboard input
+        self.camera.update(
+            self.context.frame_state.delta_t,
+            &self.context.frame_state.camera_events,
+        );
+
+        // Toggle Projection
 
         // Update the projection if the aspect ratio has changed
         // Toggle projection if P was pressed
@@ -309,9 +310,9 @@ impl<'a> GLProgram<'a, BlinnPhong> {
 
     // Help function to generate the view matrices used for setting vertex position and normals for
     // Blinn-Phong Shaders
-    pub(crate) fn generate_view_matrices(&self) -> (Mat4, Mat4, Mat3) {
+    pub(crate) fn generate_view_matrices(&mut self) -> (Mat4, Mat4, Mat3) {
         // Set uniforms for camera position
-        let mvp = self.projection.mat() * self.camera.view_matrix();
+        let mvp = self.camera.projection_matrix() * self.camera.view_matrix();
         let mv = self.camera.view_matrix();
         let mut mvn: ultraviolet::mat::Mat3 = mv.truncate();
         mvn.inverse();

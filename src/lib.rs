@@ -8,7 +8,6 @@ pub mod program;
 pub use program::builder;
 pub use program::GLProgram;
 
-pub use program::camera::CameraMove;
 // Compiling shaders into OpenGL programs
 pub mod shader;
 pub use shader::Shader;
