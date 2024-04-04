@@ -8,8 +8,8 @@ use ultraviolet::{
     vec::{Vec2, Vec3, Vec4},
 };
 
-// For arrays, not another type of Vector ->
-use std::vec::Vec;
+// For our queue of CameraEvents
+use std::collections::VecDeque;
 
 const PI: f32 = std::f32::consts::PI;
 const CAMERA_DEFAULT_SPEED: f32 = 25.0;
@@ -18,266 +18,162 @@ const Y_UNIT: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 const Z_UNIT: Vec3 = Vec3::new(0.0, 0.0, 1.0);
 const ORIGIN: Vec3 = Vec3::new(0.0, 0.0, 0.0);
 
-#[derive(Debug)]
-pub struct Camera {
-    // Where the camera is in world-space
-    position: Vec3,
-    target: Vec3,
-    radius: f32,
-    // Scales how fast the camera moves
-    speed: f32,
-    // Unit X of View Space
-    camera_x: Vec3,
-    // Unit Y of View Space
-    camera_y: Vec3,
-    // Unit Z of View Space (inverse of 'direction')
-    camera_z: Vec3,
-    // Cached View Matrix
-    view_matrix: Option<Mat4>,
-    // Projection
-    projection: Projection,
-    rot_x: f32,
-    rot_y: f32,
-    rot: Mat3,
+// Specific unit vector
+#[derive(Debug, Clone, Copy)]
+enum Axis {
+    X,
+    Y,
+    Z,
 }
 
-impl Camera {
-    // New camera, which by default hovers above the origin
-    pub(crate) fn new() -> Self {
-        let position = Vec3::new(5.0, 5.0, 5.0);
-        let target = ORIGIN;
-        let mut c = Camera {
-            position,
-            rot: Mat3::from_euler_angles(0.0, 0.0, 0.0),
-            target,
-            radius: 15.0,
-            speed: CAMERA_DEFAULT_SPEED,
-            camera_x: X_UNIT,
-            camera_y: Y_UNIT,
-            camera_z: Z_UNIT,
-            view_matrix: None,
+// Trait for different types of cameras
+pub trait Camera {
+    // Returns a Matrix which will transform points in World-Space to where they are from the
+    // camera's point of view.
+    fn view_matrix(&self) -> Mat4;
+    // Returns a Matrix which will transform points in View-Space into the Canonical View-Volume.
+    fn projection_matrix(&self) -> Mat4;
+    // Takes a queue of CameraEvents and performs the necessary operations to update the View and
+    // Projection matrices.
+    fn update(&mut self, events: &mut VecDeque<CameraEvent>) -> ();
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArcBallCamera {
+    // Where the camera is pointing at in World-Space
+    target: Vec3,
+    // How far away from the target the camera is
+    radius: f32,
+    // The rotation matrix, representing the current rotation, and our x,y,z unit axes.
+    rotation: Mat3,
+    // Cached View Matrix
+    view_matrix: Mat4,
+    // Projection Enum, contains the matrix
+    projection: Projection,
+}
+
+impl Default for ArcBallCamera {
+    fn default() -> Self {
+        ArcBallCamera {
+            target: ORIGIN,
+            radius: 25.0,
+            rotation: Mat3::identity(),
+            view_matrix: Mat4::identity(),
             projection: Projection::default_perspective(),
-            rot_x: 0.0,
-            rot_y: 0.0,
-        };
-        c.look_at(position, target);
-        c
-    }
-
-    // Returns the "front" of the camera, or the direction the camera is pointing
-    fn direction(&self) -> Vec3 {
-        -self.camera_z
-    }
-
-    // Generates a new Camera as if the virtual camera were at position and directed at the
-    // target point in world-space
-    pub fn look_at(&mut self, position: Vec3, target: Vec3) -> () {
-        // Update Rotation
-        self.camera_z = -(target - position).normalized();
-        self.update_axes();
-        // Update Position
-        self.update_position(&Direction::Absolute(position));
-    }
-
-    // Updates the camera's position in world-space
-    fn update_position(&mut self, movement: &Direction) {
-        let camera_speed = self.speed;
-        match *movement {
-            Direction::Forwards(_) => {
-                self.position -= self.camera_z;
-                self.radius -= 1.0;
-                if self.radius < 0.0 {
-                    self.radius = 0.0;
-                }
-            }
-            Direction::Backwards(_) => {
-                self.position += self.camera_z;
-                self.radius += 1.0;
-            }
-            // Direction::Left(mag) => self.position -= self.camera_x * camera_speed * mag,
-            // Direction::Right(mag) => self.position += self.camera_x * camera_speed * mag,
-            Direction::Absolute(pos) => self.position = pos,
-            Direction::Center => {
-                self.radius = 35.0;
-                self.rot_y = 0.0;
-                self.rot_x = 0.0;
-                self.position = Vec3::new(0.0, 0.0, 15.0);
-                self.target = ORIGIN;
-                self.camera_z = Z_UNIT;
-            }
-            Direction::Vector(x, y, _) => {
-                self.position -= x * self.camera_x * camera_speed;
-                self.target -= x * self.camera_x * camera_speed;
-                self.position -= y * self.camera_y * camera_speed;
-                self.target -= y * self.camera_y * camera_speed;
-            }
-            Direction::Flip => {
-                self.camera_x = -self.camera_x;
-            }
-            _ => (),
         }
-        self.update_axes();
-        self.view_matrix = None;
+    }
+}
+
+impl Camera for ArcBallCamera {
+    fn view_matrix(&self) -> Mat4 {
+        self.view_matrix
     }
 
-    // Updates the camera's rotation in world-space
-    fn update_rotation(&mut self, rotation: &Direction) {
-        match *rotation {
-            Direction::Up => {
-                let x_axis = self.rot.cols[0];
-                let smidge = Mat3::from_rotation_around(x_axis, 0.05);
-                self.rot = smidge * self.rot;
-
-                println!("rot2: {:#?}", self.rot);
-                // let rotor = ultraviolet::rotor::Rotor3::from_rotation_yz(0.05).normalized();
-                // rotor.rotate_vec(&mut self.position);
-            }
-            Direction::Down => {
-                let x_axis = self.rot.cols[0];
-                let smidge = Mat3::from_rotation_around(x_axis, -0.05);
-                self.rot = smidge * self.rot;
-                // let rotor = ultraviolet::rotor::Rotor3::from_rotation_yz(-0.05).normalized();
-                // rotor.rotate_vec(&mut self.position);
-            }
-            Direction::Left(_) => {
-                let y_axis = self.rot.cols[1];
-                let smidge = Mat3::from_rotation_around(y_axis, 0.05);
-                self.rot = smidge * self.rot;
-                // let rotor = ultraviolet::rotor::Rotor3::from_rotation_xz(-0.05).normalized();
-                // rotor.rotate_vec(&mut self.position);
-            }
-            Direction::Right(_) => {
-                let y_axis = self.rot.cols[1];
-                let smidge = Mat3::from_rotation_around(y_axis, -0.05);
-                self.rot = smidge * self.rot;
-                // let rotor = ultraviolet::rotor::Rotor3::from_rotation_xy(0.05).normalized();
-                // rotor.rotate_vec(&mut self.position);
-            }
-            // Direction::Vector(x, y, _) => {
-            //     let tug = tug_factor * ((self.camera_x * x) + (self.camera_y * y));
-            //     println!("tug: {:#?}", tug);
-            //     self.camera_z = (self.camera_z - tug).normalized();
-            //     self.update_axes();
-            // }
-            _ => (),
-        }
-        self.update_axes();
-        self.view_matrix = None;
+    fn projection_matrix(&self) -> Mat4 {
+        self.projection.matrix()
     }
 
-    fn update_projection(&mut self, zoom: &Direction) -> () {
-        self.projection = match *zoom {
-            Direction::In(mag) | Direction::Out(mag) => match self.projection {
-                Projection::Perspective {
-                    fov,
-                    aspect_ratio,
-                    z_near,
-                    z_far,
-                } => {
-                    let mut fov = fov + (mag * 0.1);
-                    if fov > PI {
-                        fov = PI
-                    }
-                    if fov < 0.1 {
-                        fov = 0.1
-                    }
-                    Projection::Perspective {
-                        fov,
-                        aspect_ratio,
-                        z_near,
-                        z_far,
-                    }
-                }
-                Projection::Ortho { side, aspect_ratio } => {
-                    let mut side = side - mag;
-                    if side > 100.0 {
-                        side = 100.0
-                    }
-                    if side < 1.0 {
-                        side = 1.0
-                    }
-                    Projection::Ortho { side, aspect_ratio }
-                }
-            },
-            Direction::Ratio(aspect_ratio) => match self.projection {
-                Projection::Perspective {
-                    fov, z_near, z_far, ..
-                } => Projection::Perspective {
-                    fov,
-                    aspect_ratio,
-                    z_near,
-                    z_far,
-                },
-                Projection::Ortho { side, .. } => Projection::Ortho { side, aspect_ratio },
-            },
-            _ => Projection::default_perspective(),
-        };
-    }
-
-    // Updates the unit axez based on the camera's Z unit vector
-    fn update_axes(&mut self) -> () {
-        self.camera_z = -(self.target - self.position).normalized();
-        self.camera_y = self.camera_z.cross(X_UNIT).normalized();
-        self.camera_x = self.camera_z.cross(self.camera_y).normalized();
-        self.view_matrix = None;
-    }
-
-    pub fn projection_matrix(&self) -> Mat4 {
-        self.projection.mat()
-    }
-
-    pub fn update(&mut self, delta_t: f32, camera_events: &Vec<CameraEvent>) -> () {
-        for change in camera_events.iter() {
+    fn update(&mut self, events: &mut VecDeque<CameraEvent>) -> () {
+        for change in events.iter() {
             match change {
                 CameraEvent::Movement(direction) => self.update_position(direction),
                 CameraEvent::Rotation(direction) => self.update_rotation(direction),
                 CameraEvent::Projection(zoom) => self.update_projection(zoom),
             };
         }
-        // Only update orthogonal axes, and invalidate the view matrix if it changed
-        if camera_events.len() > 0 {
-            self.update_axes();
+        // Update the View Matrix
+        self.compute_view_matrix();
+    }
+}
+
+impl ArcBallCamera {
+    // New camera, which by default hovers above the origin
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    // Returns the camera's unit vector of the corresponding axis, convenience
+    fn axis(&self, unit_vector: Axis) -> Vec3 {
+        match unit_vector {
+            Axis::X => self.rotation.cols[0],
+            Axis::Y => self.rotation.cols[1],
+            Axis::Z => self.rotation.cols[2],
         }
     }
 
-    // Return the view matrix that should be used to transform the world-space coordinates into
-    // view-space
-    pub fn view_matrix(&mut self) -> Mat4 {
-        if let Some(view_matrix) = self.view_matrix {
-            view_matrix
-        } else {
-            let view_matrix = self.compute_view_matrix();
-            self.view_matrix = Some(view_matrix);
-            view_matrix
+    // Updates the camera's position in world-space
+    fn update_position(&mut self, movement: &Direction) {
+        match *movement {
+            Direction::Forwards(_) => {
+                self.radius -= 1.0;
+                if self.radius < 0.11 {
+                    self.radius = 0.11;
+                }
+            }
+
+            Direction::Backwards(_) => {
+                self.radius += 1.0;
+            }
+            // Direction::Left(mag) => self.position -= self.camera_x * camera_speed * mag,
+            // Direction::Right(mag) => self.position += self.camera_x * camera_speed * mag,
+            Direction::Center => {
+                self.target = ORIGIN;
+                self.radius = 35.0;
+                self.rotation = Mat3::identity();
+            }
+
+            Direction::Vector(x, y, _) => {
+                self.target -= x * self.axis(Axis::X);
+                self.target -= y * self.axis(Axis::Y);
+            }
+            _ => (),
         }
     }
 
-    fn compute_view_matrix(&mut self) -> Mat4 {
-        // let rotation_matrix = self.inverse_rotation_matrix();
-        // let translation_matrix = self.inverse_translation_matrix();
-        // rotation_matrix * translation_matrix
-        // let rot = self.rot;
-        self.camera_x = self.rot.cols[0];
-        self.camera_y = self.rot.cols[1];
-        self.camera_z = self.rot.cols[2];
-        self.position = (self.rot.cols[2] * self.radius) + self.target;
-        // println!("self: {:#?}", self);
-        // self.position = self.target + position;
+    // Updates the camera's rotation in world-space
+    fn update_rotation(&mut self, rotation: &Direction) {
+        match *rotation {
+            Direction::Up => {
+                let x_axis = self.axis(Axis::X);
+                let smidge = Mat3::from_rotation_around(x_axis, 0.05);
+                self.rotation = smidge * self.rotation;
+            }
+            Direction::Down => {
+                let x_axis = self.axis(Axis::X);
+                let smidge = Mat3::from_rotation_around(x_axis, -0.05);
+                self.rotation = smidge * self.rotation;
+            }
+            Direction::Left(_) => {
+                let y_axis = self.axis(Axis::Y);
+                let smidge = Mat3::from_rotation_around(y_axis, 0.05);
+                self.rotation = smidge * self.rotation;
+            }
+            Direction::Right(_) => {
+                let y_axis = self.axis(Axis::Y);
+                let smidge = Mat3::from_rotation_around(y_axis, -0.05);
+                self.rotation = smidge * self.rotation;
+            }
+            _ => (),
+        }
+    }
 
-        // self.update_axes();
-        // ultraviolet::mat::Mat4::look_at(self.positioc, ORIGIN, self.camera_y)
+    fn update_projection(&mut self, zoom: &Direction) -> () {
+        ()
+    }
+
+    fn compute_view_matrix(&mut self) -> () {
         let trans = self.inverse_translation_matrix();
         let rot = self.inverse_rotation_matrix();
-        rot * trans
+        self.view_matrix = rot * trans;
     }
 
     // Inverse of a rotation matrix is its transpose. This takes 3 unit vectors of the camera and
     // returns the inverse matrix that represents that rotation in world-space. This can be used to
     // transform other, non-camera objects in world space into view-sapce
     fn inverse_rotation_matrix(&self) -> Mat4 {
-        let x = self.camera_x;
-        let y = self.camera_y;
-        let z = self.camera_z;
+        let x = self.axis(Axis::X);
+        let y = self.axis(Axis::Y);
+        let z = self.axis(Axis::Z);
         Mat4::new(
             Vec4::new(x.x, x.y, x.z, 0.0),
             Vec4::new(y.x, y.y, y.z, 0.0),
@@ -297,9 +193,10 @@ impl Camera {
          * | 0 0 0  1 |
          * +-        -+
          */
-        let pos_x = self.position.x;
-        let pos_y = self.position.y;
-        let pos_z = self.position.z;
+        let position = (self.axis(Axis::Z) * self.radius) + self.target;
+        let pos_x = position.x;
+        let pos_y = position.y;
+        let pos_z = position.z;
         Mat4::new(
             Vec4::new(1.0, 0.0, 0.0, 0.0),
             Vec4::new(0.0, 1.0, 0.0, 0.0),
@@ -336,19 +233,3 @@ pub enum Direction {
     Center,
     Flip,
 }
-
-// fn direction_from_pitch_and_yaw(pitch: f32, yaw: f32) -> Vec3 {
-//     let x = yaw.cos() * pitch.cos();
-//     let y = pitch.sin();
-//     let z = yaw.sin() * pitch.cos();
-//     Vec3::new(x, y, z).normalized()
-// }
-// self.yaw += x_offset as f32;
-// self.pitch += y_offset as f32;
-// if self.pitch > 89.0 {
-//     self.pitch = 89.0;
-// }
-// if self.pitch < -89.0 {
-//     self.pitch = -89.0;
-// }
-// self.direction = -Self::direction_from_pitch_and_yaw(self.pitch, self.yaw);

@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 // Import our Error Type
 pub use crate::program::camera::CameraEvent;
 use crate::{program::camera::Direction, GLError};
@@ -140,7 +142,7 @@ impl GLWindow {
             println!("x: {}, y: {}", x, y);
             self.frame_state
                 .camera_events
-                .push(CameraEvent::Movement(Direction::Vector(x, y, 0.0)));
+                .push_back(CameraEvent::Movement(Direction::Vector(x, y, 0.0)));
             self.frame_state.r_cursor_position = (u, v);
         }
 
@@ -151,7 +153,7 @@ impl GLWindow {
                     self.frame_state.resolution = Some((width as f32, height as f32));
                     self.frame_state
                         .camera_events
-                        .push(CameraEvent::Projection(Direction::Ratio(aspect_ratio)));
+                        .push_back(CameraEvent::Projection(Direction::Ratio(aspect_ratio)));
                     gl::Viewport(0, 0, width, height)
                 },
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
@@ -164,23 +166,23 @@ impl GLWindow {
                 glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        // .push(CameraEvent::Movement(Direction::Forwards(dt)));
-                        .push(CameraEvent::Rotation(Direction::Up));
+                        // .push_back(CameraEvent::Movement(Direction::Forwards(dt)));
+                        .push_back(CameraEvent::Rotation(Direction::Up));
                 }
                 glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push(CameraEvent::Rotation(Direction::Down));
+                        .push_back(CameraEvent::Rotation(Direction::Down));
                 }
                 glfw::WindowEvent::Key(Key::A, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push(CameraEvent::Rotation(Direction::Left(dt)));
+                        .push_back(CameraEvent::Rotation(Direction::Left(dt)));
                 }
                 glfw::WindowEvent::Key(Key::D, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push(CameraEvent::Rotation(Direction::Right(dt)));
+                        .push_back(CameraEvent::Rotation(Direction::Right(dt)));
                 }
                 glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Press, _) => {
                     self.frame_state.r_cursor_position = (u, v);
@@ -196,26 +198,26 @@ impl GLWindow {
                 glfw::WindowEvent::Key(Key::C, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push(CameraEvent::Movement(Direction::Center));
+                        .push_back(CameraEvent::Movement(Direction::Center));
                 }
                 glfw::WindowEvent::Key(Key::F, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push(CameraEvent::Movement(Direction::Flip));
+                        .push_back(CameraEvent::Movement(Direction::Flip));
                 }
                 glfw::WindowEvent::Scroll(_, y) => {
                     let y = y as f32;
                     if y > 0.0 {
                         self.frame_state
                             .camera_events
-                            .push(CameraEvent::Movement(Direction::Forwards(dt)));
+                            .push_back(CameraEvent::Movement(Direction::Forwards(dt)));
 
-                        // .push(CameraEvent::Projection(Direction::In(y)))
+                        // .push_back(CameraEvent::Projection(Direction::In(y)))
                     } else {
                         self.frame_state
                             .camera_events
-                            .push(CameraEvent::Movement(Direction::Backwards(dt)));
-                        // .push(CameraEvent::Projection(Direction::Out(y)))
+                            .push_back(CameraEvent::Movement(Direction::Backwards(dt)));
+                        // .push_back(CameraEvent::Projection(Direction::Out(y)))
                     }
                 }
                 _ => {}
@@ -233,7 +235,7 @@ pub struct FrameState {
     pub toggle_projection: bool,
     pub r_cursor_position: (f32, f32),
     pub mm_valid: bool,
-    pub camera_events: std::vec::Vec<CameraEvent>,
+    pub camera_events: std::collections::VecDeque<CameraEvent>,
     pub window_events: std::vec::Vec<WindowEvent>,
 }
 
@@ -246,7 +248,7 @@ impl FrameState {
             toggle_projection: false,
             r_cursor_position: (0.0, 0.0),
             mm_valid: false,
-            camera_events: Vec::new(),
+            camera_events: VecDeque::new(),
             window_events: Vec::new(),
         }
     }

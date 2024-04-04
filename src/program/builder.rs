@@ -1,7 +1,7 @@
 // For building a certain type of GLProgram
 use gl;
 
-use super::{BlinnPhong, CustomShader, GLProgram, GLWindow, ProgramError};
+use super::{camera::ArcBallCamera, BlinnPhong, CustomShader, GLProgram, GLWindow, ProgramError};
 use crate::program::camera::Camera;
 use crate::program::projection::Projection;
 use glfw::Context;
@@ -56,7 +56,7 @@ impl<'a> GLProgram<'a, CustomShader> {
             id,
             context,
             shaders,
-            camera: Camera::new(),
+            camera: Box::new(ArcBallCamera::new()),
             lights: Vec::new(),
             lights_buffer: None,
             vaos: std::collections::HashMap::new(),
@@ -136,7 +136,7 @@ impl<'a> GLProgramBuilder<'a, GLWindow, Shader<'a, VertexShader>, Shader<'a, Fra
             id,
             context: self.window,
             shaders,
-            camera: Camera::new(),
+            camera: Box::new(ArcBallCamera::new()),
             lights: Vec::new(),
             lights_buffer: None,
             vaos: std::collections::HashMap::new(),

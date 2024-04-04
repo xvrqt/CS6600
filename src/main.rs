@@ -8,7 +8,7 @@ fn main() -> Result<(), GLError> {
 
     let obj = load_obj("./objs/teapot.obj")?;
     let _ = program.vao_from_obj("gay", &obj);
-    let _ = program.add_light(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.5, 0.5, 0.5));
+    // let _ = program.add_light(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.5, 0.5, 0.5));
     let _ = program.add_light(Vec3::new(0.0, 5.0, 5.0), Vec3::new(0.7, 0.0, 0.0));
     let _ = program.add_light(Vec3::new(5.0, 5.0, 0.0), Vec3::new(0.0, 0.7, 0.0));
     let _ = program.add_light(Vec3::new(5.0, 0.0, 5.0), Vec3::new(0.0, 0.0, 0.7));

@@ -41,6 +41,7 @@ use ultraviolet::mat::{Mat3, Mat4};
 use ultraviolet::vec::{Vec3, Vec4};
 
 use self::camera::Camera;
+use std::boxed::Box;
 
 const SIDE: f32 = 1.0;
 const ORIGINV3: Vec3 = Vec3::new(0.0, 0.0, 0.0);
@@ -53,7 +54,7 @@ struct LightSource {
 }
 
 // Semantic OpenGL Program
-#[derive(Debug)]
+// #[derive(Debug)]
 #[allow(dead_code)]
 
 // V, F -> Shader Type (built-in shaders have special implementations to make things easier)
@@ -64,7 +65,7 @@ pub struct GLProgram<'a, Type> {
     context: GLWindow,
     // OpenGL Shaders, e.g. vertex, fragment, et al.
     shaders: ShaderPipeline<'a>,
-    camera: Camera,
+    camera: Box<dyn Camera>,
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
     // List of uniforms we update automagically for the caller
@@ -268,10 +269,8 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         }
 
         // Update our camera based off of keyboard input
-        self.camera.update(
-            self.context.frame_state.delta_t,
-            &self.context.frame_state.camera_events,
-        );
+        self.camera
+            .update(&mut self.context.frame_state.camera_events);
 
         // Toggle Projection
 
