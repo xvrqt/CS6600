@@ -74,11 +74,16 @@ impl Camera for ArcBallCamera {
     }
 
     fn update(&mut self, events: &mut VecDeque<CameraEvent>) -> () {
-        for change in events.iter() {
-            match change {
-                CameraEvent::Movement(direction) => self.update_position(direction),
-                CameraEvent::Rotation(direction) => self.update_rotation(direction),
-                CameraEvent::Projection(zoom) => self.update_projection(zoom),
+        while let Some(event) = events.pop_front() {
+            match event {
+                CameraEvent::Movement(direction) => self.update_position(&direction),
+                CameraEvent::Rotation(direction) => self.update_rotation(&direction),
+                // Update Projection
+                CameraEvent::ZoomProjection(mag) => self.projection = self.projection.zoom(mag),
+                CameraEvent::SwapProjection => self.projection = self.projection.swap(),
+                CameraEvent::ProjectionAspectRatio(new_aspect_ratio) => {
+                    self.projection = self.projection.aspect_ratio(new_aspect_ratio)
+                }
             };
         }
         // Update the View Matrix
@@ -120,11 +125,12 @@ impl ArcBallCamera {
                 self.target = ORIGIN;
                 self.radius = 35.0;
                 self.rotation = Mat3::identity();
+                self.projection = Projection::default_perspective();
             }
 
             Direction::Vector(x, y, _) => {
-                self.target -= x * self.axis(Axis::X);
-                self.target -= y * self.axis(Axis::Y);
+                self.target -= x * self.axis(Axis::X) * 25.0;
+                self.target -= y * self.axis(Axis::Y) * 25.0;
             }
             _ => (),
         }
@@ -153,14 +159,19 @@ impl ArcBallCamera {
                 let smidge = Mat3::from_rotation_around(y_axis, -0.05);
                 self.rotation = smidge * self.rotation;
             }
+            Direction::Vector(x, y, _) => {
+                let x_axis = self.axis(Axis::X);
+                let smidge = Mat3::from_rotation_around(x_axis, y);
+                self.rotation = smidge * self.rotation;
+                let y_axis = self.axis(Axis::Y);
+                let smidge = Mat3::from_rotation_around(y_axis, -x);
+                self.rotation = smidge * self.rotation;
+            }
             _ => (),
         }
     }
 
-    fn update_projection(&mut self, zoom: &Direction) -> () {
-        ()
-    }
-
+    // Recomputes the View Matrix based on the updated: target, rotation, and radius
     fn compute_view_matrix(&mut self) -> () {
         let trans = self.inverse_translation_matrix();
         let rot = self.inverse_rotation_matrix();
@@ -210,7 +221,9 @@ impl ArcBallCamera {
 pub enum CameraEvent {
     Movement(Direction),
     Rotation(Direction),
-    Projection(Direction),
+    SwapProjection,
+    ProjectionAspectRatio(f32),
+    ZoomProjection(f32),
 }
 
 #[derive(Debug)]

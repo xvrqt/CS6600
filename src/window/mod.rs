@@ -114,36 +114,37 @@ impl GLWindow {
         self.frame_state.delta_t = dt;
 
         // Clear Event Queues
-        self.frame_state.camera_events.clear();
         self.frame_state.window_events.clear();
 
+        // Retrieve and normalize cursor coordinates
         let (width, height) = self.window.get_size();
         let aspect_ratio = width as f32 / height as f32;
         let (x, y) = self.window.get_cursor_pos();
         let u = (((x as f32 / width as f32) * 2.0) - 1.0) * aspect_ratio;
         let v = -(((y as f32 / height as f32) * 2.0) - 1.0);
-        // println!("u: {}, v: {}", u, v);
 
-        // Don't rotate if the mouse is near the center
-        if u.abs() > 0.2 || v.abs() > 0.2 {
-            // self.frame_state
-            //     .camera_events
-            //     .push(CameraEvent::Rotation(Direction::Vector(
-            //         u - 0.2,
-            //         v - 0.2,
-            //         0.0,
-            //     )));
-        }
-
-        if self.frame_state.mm_valid {
-            let (ou, ov) = self.frame_state.r_cursor_position;
+        // Let the camera know the middle mouse drag
+        if self.frame_state.mm_shift_valid {
+            let (ou, ov) = self.frame_state.mm_cursor_position;
             let x = u - ou;
             let y = v - ov;
-            println!("x: {}, y: {}", x, y);
+            // println!("x: {}, y: {}", x, y);
             self.frame_state
                 .camera_events
                 .push_back(CameraEvent::Movement(Direction::Vector(x, y, 0.0)));
-            self.frame_state.r_cursor_position = (u, v);
+            self.frame_state.mm_cursor_position = (u, v);
+        }
+
+        // Let the camera know the middle mouse drag
+        if self.frame_state.mm_valid {
+            let (ou, ov) = self.frame_state.mm_cursor_position;
+            let x = u - ou;
+            let y = v - ov;
+            // println!("x: {}, y: {}", x, y);
+            self.frame_state
+                .camera_events
+                .push_back(CameraEvent::Rotation(Direction::Vector(x, y, 0.0)));
+            self.frame_state.mm_cursor_position = (u, v);
         }
 
         for (_, event) in glfw::flush_messages(&self.events) {
@@ -153,7 +154,7 @@ impl GLWindow {
                     self.frame_state.resolution = Some((width as f32, height as f32));
                     self.frame_state
                         .camera_events
-                        .push_back(CameraEvent::Projection(Direction::Ratio(aspect_ratio)));
+                        .push_back(CameraEvent::ProjectionAspectRatio(aspect_ratio));
                     gl::Viewport(0, 0, width, height)
                 },
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
@@ -161,7 +162,9 @@ impl GLWindow {
                     self.frame_state.window_events.push(WindowEvent::Close);
                 }
                 glfw::WindowEvent::Key(Key::P, _, Action::Press, _) => {
-                    self.frame_state.toggle_projection = true;
+                    self.frame_state
+                        .camera_events
+                        .push_back(CameraEvent::SwapProjection);
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
@@ -184,16 +187,37 @@ impl GLWindow {
                         .camera_events
                         .push_back(CameraEvent::Rotation(Direction::Right(dt)));
                 }
+                glfw::WindowEvent::Key(Key::Z, _, Action::Press | Action::Repeat, _) => {
+                    self.frame_state
+                        .camera_events
+                        .push_back(CameraEvent::ZoomProjection(0.1));
+                }
+                glfw::WindowEvent::Key(Key::X, _, Action::Press | Action::Repeat, _) => {
+                    self.frame_state
+                        .camera_events
+                        .push_back(CameraEvent::ZoomProjection(-0.1));
+                }
+                glfw::WindowEvent::MouseButton(
+                    glfw::MouseButtonMiddle,
+                    Action::Press,
+                    glfw::Modifiers::Shift,
+                ) => {
+                    self.frame_state.mm_shift_cursor_position = (u, v);
+                    self.frame_state.mm_shift_valid = true;
+                }
+                glfw::WindowEvent::MouseButton(
+                    glfw::MouseButtonMiddle,
+                    Action::Release,
+                    glfw::Modifiers::Shift,
+                ) => {
+                    self.frame_state.mm_shift_valid = false;
+                }
                 glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Press, _) => {
-                    self.frame_state.r_cursor_position = (u, v);
+                    self.frame_state.mm_cursor_position = (u, v);
                     self.frame_state.mm_valid = true;
-                    println!("gay");
                 }
                 glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Release, _) => {
                     self.frame_state.mm_valid = false;
-                }
-                glfw::WindowEvent::MouseButton(glfw::MouseButtonMiddle, Action::Repeat, _) => {
-                    // frame
                 }
                 glfw::WindowEvent::Key(Key::C, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
@@ -233,8 +257,10 @@ pub struct FrameState {
     pub delta_t: f32,                   // Time since the previous frame
     pub resolution: Option<(f32, f32)>, // Width, Height
     pub toggle_projection: bool,
-    pub r_cursor_position: (f32, f32),
+    pub mm_cursor_position: (f32, f32),
+    pub mm_shift_cursor_position: (f32, f32),
     pub mm_valid: bool,
+    pub mm_shift_valid: bool,
     pub camera_events: std::collections::VecDeque<CameraEvent>,
     pub window_events: std::vec::Vec<WindowEvent>,
 }
@@ -246,8 +272,10 @@ impl FrameState {
             delta_t: 0.0,
             resolution: None, // Only contains Some() when the screen changes size to avoid needless recalculations
             toggle_projection: false,
-            r_cursor_position: (0.0, 0.0),
+            mm_cursor_position: (0.0, 0.0),
+            mm_shift_cursor_position: (0.0, 0.0),
             mm_valid: false,
+            mm_shift_valid: false,
             camera_events: VecDeque::new(),
             window_events: Vec::new(),
         }

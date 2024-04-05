@@ -51,9 +51,9 @@ impl Projection {
         z_far: f32,
     ) -> Projection {
         Projection::Perspective {
-            fov: PI / 3.0,
-            aspect_ratio: 1.0,
-            z_near: 0.1,
+            fov,
+            aspect_ratio,
+            z_near,
             z_far: 10000.0,
             matrix: ultraviolet::projection::perspective_gl(fov, aspect_ratio, z_near, z_far),
         }
@@ -67,8 +67,7 @@ impl Projection {
                 fov,
                 aspect_ratio,
                 z_near,
-                z_far,
-                matrix,
+                ..
             } => {
                 let side = z_near * (fov / 2.0).tan();
                 Self::new_ortho(side, aspect_ratio)
@@ -81,9 +80,7 @@ impl Projection {
         match self {
             Projection::Perspective { .. } => self,
             Projection::Ortho {
-                side,
-                aspect_ratio,
-                matrix,
+                side, aspect_ratio, ..
             } => {
                 let fov = (side / 0.1).atan() * 2.0;
                 Self::new_perspective(fov, aspect_ratio, 0.1, side)
@@ -96,6 +93,47 @@ impl Projection {
         match self {
             Projection::Ortho { .. } => self.perspective(),
             Projection::Perspective { .. } => self.ortho(),
+        }
+    }
+
+    // Updates the aspect ratio
+    pub(crate) fn aspect_ratio(self, aspect_ratio: f32) -> Self {
+        match self {
+            Projection::Ortho { side, .. } => Projection::new_ortho(side, aspect_ratio),
+            Projection::Perspective {
+                fov, z_near, z_far, ..
+            } => Projection::new_perspective(fov, aspect_ratio, z_near, z_far),
+        }
+    }
+
+    // Changes the bounding box, or fielf of view of a Projection
+    pub(crate) fn zoom(self, zoom: f32) -> Self {
+        match self {
+            Projection::Ortho {
+                side, aspect_ratio, ..
+            } => {
+                let mut side = side + zoom * 10.0;
+                if side < 0.1 {
+                    side = 0.1
+                };
+                Projection::new_ortho(side, aspect_ratio)
+            }
+            Projection::Perspective {
+                fov,
+                aspect_ratio,
+                z_near,
+                z_far,
+                ..
+            } => {
+                let mut fov = fov + zoom;
+                if fov < 1.0 {
+                    fov = 1.0
+                }
+                if fov > PI - 0.1 {
+                    fov = PI - 0.1;
+                }
+                Projection::new_perspective(fov, aspect_ratio, z_near, z_far)
+            }
         }
     }
 
