@@ -92,8 +92,18 @@ impl<'a> Shader<'a, FragmentShader> {
         Self::new_shader(source, gl::FRAGMENT_SHADER)
     }
 
-    pub fn blinn_phong() -> Result<Shader<'a, FragmentShader>> {
-        Self::new_shader(blinn_phong::FRAGMENT_SHADER_SOURCE, gl::FRAGMENT_SHADER)
+    pub fn blinn() -> Result<Shader<'a, FragmentShader>> {
+        Self::new_shader(
+            blinn_phong::BLINN_FRAGMENT_SHADER_SOURCE,
+            gl::FRAGMENT_SHADER,
+        )
+    }
+
+    pub fn phong() -> Result<Shader<'a, FragmentShader>> {
+        Self::new_shader(
+            blinn_phong::PHONG_FRAGMENT_SHADER_SOURCE,
+            gl::FRAGMENT_SHADER,
+        )
     }
 }
 

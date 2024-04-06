@@ -2,6 +2,7 @@
 pub mod error;
 pub use error::{GLError, GLUtilityError};
 pub mod window;
+pub use program::lights::{LightColor, Position};
 
 // Linking shaders to crete a GL Program
 pub mod program;

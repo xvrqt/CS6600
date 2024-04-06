@@ -4,8 +4,11 @@ pub mod error;
 use ::glfw::Context;
 pub use error::ProgramError;
 pub mod builder;
-pub mod projection;
-pub use projection::Projection;
+
+pub mod lights;
+pub use lights::{LightColor, LightSource, Position};
+
+pub use camera::Projection;
 pub use window::FrameState;
 
 use crate::window::GLWindow;
@@ -15,14 +18,11 @@ pub mod camera;
 use crate::window;
 
 // Programs must attach at least a Vertex and Fragment Shader
-use crate::shader::{
-    blinn_phong, FragmentShader, GeometryShader, Shader, ShaderPipeline, TesselationShader,
-    VertexShader,
-};
+use crate::shader::ShaderPipeline;
 // Convenient use of special types that work well with OpenGL
 use crate::types::*;
 // Create and set uniform shader values
-use crate::uniform::{MagicUniform, Uniform};
+use crate::uniform::Uniform;
 // Create and manager OpenGL Vertex Attribute Objects
 use crate::vao::VAO;
 // Special per frame values used in the draw() call
@@ -38,20 +38,9 @@ use std::collections::HashMap;
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
 use ultraviolet::mat::{Mat3, Mat4};
-use ultraviolet::vec::{Vec3, Vec4};
 
 use self::camera::Camera;
 use std::boxed::Box;
-
-const SIDE: f32 = 1.0;
-const ORIGINV3: Vec3 = Vec3::new(0.0, 0.0, 0.0);
-
-#[repr(C)]
-#[derive(Debug)]
-struct LightSource {
-    color: Vec4,
-    position: Vec4,
-}
 
 // Semantic OpenGL Program
 // #[derive(Debug)]
@@ -147,12 +136,9 @@ impl<'a, Any> GLProgram<'a, Any> {
 // Used to create a GLProgram
 impl<'a> GLProgram<'a, BlinnPhong> {
     // Adds a light to the scene
-    pub fn add_light(&mut self, position: Vec3, color: Vec3) -> Result<()> {
+    pub fn add_light(&mut self, position: &Position, color: &LightColor) -> Result<()> {
         // Transform into homogeneous 3D coordinates, and add full opacity to the color value
-        let light = LightSource {
-            color: Vec4::new(color.x, color.y, color.z, 1.0),
-            position: Vec4::new(position.x, position.y, position.z, 1.0),
-        };
+        let light = LightSource::new(color, position);
         self.lights.push(light);
         // Since we're buffering to the GPU we don't want extra mememory at the end
         self.lights.shrink_to_fit();
@@ -161,10 +147,10 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         let block_id = self.get_uniform_block_index("Lights")?;
         let num_lights = self.lights.len();
 
-        // Rebind the lights (This is the layount in the shader code)
-        let binding_point = 1 as GLuint;
+        // Rebind the lights (This is the layout in the shader code)
+        let binding_point = 0 as GLuint;
 
-        // Generate a Uniform Buffer if we haven't alreaady
+        // Initialize a Uniform Buffer for the lights, if we haven't alreaady
         let buffer_id = match self.lights_buffer {
             Some(id) => id,
             None => {
@@ -176,6 +162,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
                 id
             }
         };
+
         // Buffer the data
         unsafe {
             gl::UniformBlockBinding(self.id, block_id, binding_point);
@@ -194,12 +181,8 @@ impl<'a> GLProgram<'a, BlinnPhong> {
     }
 
     // Set the ambient light for the scene
-    pub fn ambient_light(&mut self, color: Vec3, intensity: GLfloat) -> Result<()> {
-        let color = GL4F(color.x, color.y, color.z, 1.0);
-        let intensity = intensity.clamp(0.0, 1.0);
-        let intensity = GL1F(intensity);
-        self.set_uniform("ambient_light_color", color)?;
-        self.set_uniform("ambient_intensity", intensity)
+    pub fn ambient_light(&mut self, color: &LightColor) -> Result<()> {
+        self.set_uniform("ambient_light_color", color.clone().to_vec4())
     }
 
     // Create a new, or edit an existing, VAO
@@ -254,11 +237,11 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             gl::Enable(gl::DEPTH_TEST);
-            // gl::Enable(gl::BLEND);
-            // gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
             // gl::BlendFunc(gl::ONE, gl::ONE);
             // gl::DepthFunc(gl::ALWAYS);
-            // gl::CullFace(gl::BACK);
+            gl::CullFace(gl::BACK);
         }
 
         // Sets up 'self.context.frame_state' based on polled events
@@ -271,11 +254,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Update our camera based off of keyboard input
         self.camera
             .update(&mut self.context.frame_state.camera_events);
-
-        // Toggle Projection
-
-        // Update the projection if the aspect ratio has changed
-        // Toggle projection if P was pressed
 
         // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
         // Transform for inside the Blinn-Phong Vertex Shader
@@ -309,11 +287,13 @@ impl<'a> GLProgram<'a, BlinnPhong> {
 
     // Help function to generate the view matrices used for setting vertex position and normals for
     // Blinn-Phong Shaders
-    pub(crate) fn generate_view_matrices(&mut self) -> (Mat4, Mat4, Mat3) {
-        // Set uniforms for camera position
-        let mvp = self.camera.projection_matrix() * self.camera.view_matrix();
+    fn generate_view_matrices(&mut self) -> (Mat4, Mat4, Mat3) {
+        // Camera-Space
         let mv = self.camera.view_matrix();
-        let mut mvn: ultraviolet::mat::Mat3 = mv.truncate();
+        // Canonical View Volume
+        let mvp = self.camera.projection_matrix() * mv;
+        // Remove scaling on normals, move into World-Space
+        let mut mvn = mv.truncate();
         mvn.inverse();
         mvn.transpose();
 

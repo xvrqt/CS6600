@@ -50,6 +50,15 @@ impl Uniform for ultraviolet::mat::Mat3 {
     }
 }
 
+impl Uniform for ultraviolet::vec::Vec4 {
+    fn set(&mut self, location: GLint) -> Result<(), UniformError> {
+        unsafe {
+            gl::Uniform4f(location, self.x, self.y, self.z, self.w);
+        }
+        Ok(())
+    }
+}
+
 // Values
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug)]

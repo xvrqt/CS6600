@@ -2,9 +2,6 @@
 use gl;
 
 use super::{camera::ArcBallCamera, BlinnPhong, CustomShader, GLProgram, GLWindow, ProgramError};
-use crate::program::camera::Camera;
-use crate::program::projection::Projection;
-use glfw::Context;
 type Result<T> = std::result::Result<T, ProgramError>;
 // Shaders determine, in large part, the type of the Builder
 use crate::shader::{
@@ -44,13 +41,32 @@ impl<'a> GLProgram<'a, CustomShader> {
     }
 
     // Shortcut to creating a GLProgram that users Blinn-Phong Shading
-    pub fn blinn_phong() -> Result<GLProgram<'a, BlinnPhong>> {
+    pub fn phong() -> Result<GLProgram<'a, BlinnPhong>> {
         // Load the function pointers
         let mut context = GLWindow::default()?;
         gl::load_with(|symbol| context.window.get_proc_address(symbol) as *const _);
         let id = create_program_id();
         let vs = Shader::<VertexShader>::blinn_phong()?;
-        let fs = Shader::<FragmentShader>::blinn_phong()?;
+        let fs = Shader::<FragmentShader>::phong()?;
+        let shaders = ShaderPipeline::new(id, vs, fs, None, None)?;
+        Ok(GLProgram {
+            id,
+            context,
+            shaders,
+            camera: Box::new(ArcBallCamera::new()),
+            lights: Vec::new(),
+            lights_buffer: None,
+            vaos: std::collections::HashMap::new(),
+            _pd: std::marker::PhantomData::<BlinnPhong>,
+        })
+    }
+    pub fn blinn() -> Result<GLProgram<'a, BlinnPhong>> {
+        // Load the function pointers
+        let mut context = GLWindow::default()?;
+        gl::load_with(|symbol| context.window.get_proc_address(symbol) as *const _);
+        let id = create_program_id();
+        let vs = Shader::<VertexShader>::blinn_phong()?;
+        let fs = Shader::<FragmentShader>::blinn()?;
         let shaders = ShaderPipeline::new(id, vs, fs, None, None)?;
         Ok(GLProgram {
             id,
