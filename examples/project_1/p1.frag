@@ -1,12 +1,9 @@
 #version 460 core
 #define PI 3.141592653
-
-uniform float time;
 uniform vec2 resolution;
+uniform float time;
 
-in vec3 clrs;
 in vec4 gl_FragCoord;
-
 out vec4 fragColor;
 
 // Signed Distance to a circle
@@ -72,6 +69,5 @@ void main() {
     }
 
     // Output to screen
-    finalColor += clrs * 0.5;
     fragColor = vec4(finalColor, 0.33);
 }

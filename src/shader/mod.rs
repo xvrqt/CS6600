@@ -2,6 +2,7 @@
 pub mod error;
 use crate::error::GLUtilityError;
 pub use error::ShaderError;
+mod fragment_only;
 type Result<T> = std::result::Result<T, error::ShaderError>;
 
 // Import our built-in shader types
@@ -84,6 +85,10 @@ impl<'a> Shader<'a, VertexShader> {
 
     pub fn blinn_phong() -> Result<Shader<'a, VertexShader>> {
         Self::new_shader(blinn_phong::VERTEX_SHADER_SOURCE, gl::VERTEX_SHADER)
+    }
+
+    pub fn fragment_only() -> Result<Shader<'a, VertexShader>> {
+        Self::new_shader(fragment_only::VERTEX_SHADER_SOURCE, gl::VERTEX_SHADER)
     }
 }
 
