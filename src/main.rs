@@ -4,7 +4,7 @@ use cs6600::{load::load_obj, GLError, GLProgram, LightColor, Position};
 fn main() -> Result<(), GLError> {
     let mut program = GLProgram::phong()?;
 
-    let obj = load_obj("./objs/teapot.obj")?;
+    let obj = load_obj("./objs/cube.obj")?;
     program.vao_from_obj("gay", &obj)?;
 
     let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.01);

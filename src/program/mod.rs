@@ -1,7 +1,6 @@
 // #![allow(dead_code)]
 // Import and Re-Export our Error Type
 pub mod error;
-use ::glfw::Context;
 pub use error::ProgramError;
 pub mod blinn_phong;
 pub mod builder;
@@ -20,31 +19,19 @@ use crate::window;
 
 // Programs must attach at least a Vertex and Fragment Shader
 use crate::shader::ShaderPipeline;
-// Convenient use of special types that work well with OpenGL
-use crate::types::*;
 // Create and set uniform shader values
 use crate::uniform::Uniform;
-// Create and manager OpenGL Vertex Attribute Objects
-use crate::vao::VAO;
-// Special per frame values used in the draw() call
-
-use crate::obj::Obj;
 use blinn_phong::BlinnPhong;
 
 // OpenGL Types
 use gl::types::*;
 
-// Used to track Vertex Array Objects
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
-use ultraviolet::mat::{Mat3, Mat4};
 
 use self::camera::Camera;
 use fragment_only::FragmentOnly;
 mod fragment_only;
-use std::boxed::Box;
 
 // Semantic OpenGL Program
 // #[derive(Debug)]
