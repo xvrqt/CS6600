@@ -13,13 +13,12 @@ pub use program::GLProgram;
 pub mod shader;
 pub use shader::Shader;
 // Loading shader, object, texture files
-pub mod load;
 // Creating and managing Vertex Array Objects
 pub mod vao;
 // Types and Setting Uniform Values
 pub mod uniform;
+pub use program::mesh::load_mesh;
 // Our Wavefront Obj parses into this
-pub mod obj;
 
 // Re-export for more ergnomic use
 pub mod types {

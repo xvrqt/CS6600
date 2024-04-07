@@ -1,13 +1,16 @@
 // My Libs
-use cs6600::{load::load_obj, GLError, GLProgram, LightColor, Position};
+use cs6600::{load_mesh, GLError, GLProgram, LightColor, Position};
 
 fn main() -> Result<(), GLError> {
     let mut program = GLProgram::phong()?;
 
-    let obj = load_obj("./objs/cube.obj")?;
+    // let obj = load_obj("./objs/cube.obj")?;
+    let obj = load_mesh("./objs/teapot.obj")?;
     program.vao_from_obj("gay", &obj)?;
+    let obj = load_mesh("./objs/smooth_monkey.obj")?;
+    program.vao_from_obj("girls", &obj)?;
 
-    let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.01);
+    let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.1);
     let location_1 = Position::new(-10.0, -5.0, -5.0);
     let location_2 = Position::new(10.0, -5.0, 5.0);
     let location_3 = Position::new(0.0, 10.0, 0.0);

@@ -1,6 +1,6 @@
 // Library Error Types
 pub use crate::{
-    load::LoadError, program::ProgramError, shader::ShaderError, uniform::UniformError,
+    program::mesh::MeshError, program::ProgramError, shader::ShaderError, uniform::UniformError,
     vao::VAOError, window::WindowError,
 };
 // Make error logs, and shader source errors pretty and helpful
@@ -14,7 +14,7 @@ pub enum GLError {
     Window(WindowError),
     Uniform(UniformError),
     VAO(VAOError),
-    Load(LoadError),
+    Mesh(MeshError),
     Other(GLUtilityError),
 }
 
@@ -37,8 +37,8 @@ impl std::fmt::Display for GLError {
             GLError::VAO(error) => {
                 write!(f, "GL Attribute Creation Error:\n{}", error.to_string())
             }
-            GLError::Load(error) => {
-                write!(f, "GL Program File Loading Error:\n{}", error.to_string())
+            GLError::Mesh(error) => {
+                write!(f, "GL Program Mesh Error:\n{}", error.to_string())
             }
             GLError::Other(error) => {
                 write!(f, "GL Program Error:\n{}", error.to_string())
@@ -100,5 +100,11 @@ impl std::fmt::Display for GLUtilityError {
 impl From<GLUtilityError> for crate::GLError {
     fn from(error: GLUtilityError) -> Self {
         crate::GLError::Other(error)
+    }
+}
+
+impl From<std::io::Error> for GLUtilityError {
+    fn from(error: std::io::Error) -> Self {
+        GLUtilityError::CouldNotOpenFile(String::from(""), error)
     }
 }

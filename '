@@ -62,6 +62,7 @@ impl From<wavefront_obj::obj::Object> for Obj {
         let mut normals = Vec::new();
         normals.resize(num_verts, Vec3::new(0.0, 0.0, 0.0));
         let mut indices = Vec::new();
+        println!("num shapes: {}", o.geometry[0].shapes.len());
 
         for shape in o.geometry[0].shapes.iter() {
             let triangle_points = match shape.primitive {

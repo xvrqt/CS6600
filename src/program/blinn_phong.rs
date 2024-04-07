@@ -1,10 +1,9 @@
+use super::mesh::Mesh;
 use super::GLProgram;
-use crate::obj::Obj;
 use crate::program::camera::ArcBallCamera;
 use crate::program::Camera;
 use crate::program::ProgramError;
 use crate::program::{LightColor, LightSource};
-use crate::shader::ShaderPipeline;
 use crate::types::*;
 use crate::vao::VAO;
 use crate::Position;
@@ -104,7 +103,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
     }
 
     // Create a new, or edit an existing, VAO
-    pub fn vao_from_obj<S>(&mut self, name: S, obj: &Obj) -> Result<&mut Self>
+    pub fn vao_from_obj<S>(&mut self, name: S, obj: &Mesh) -> Result<&mut Self>
     where
         S: AsRef<str>,
     {
@@ -116,7 +115,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Set up the VAO state to use indices
         let mut ele_buffer = 0;
         let ele_buffer_ptr = obj.indices.as_ptr() as *const std::ffi::c_void;
-        let ele_buffer_size = (obj.indices.len() * std::mem::size_of::<u16>()) as isize;
+        let ele_buffer_size = (obj.indices.len() * std::mem::size_of::<u32>()) as isize;
         unsafe {
             gl::GenBuffers(1, &mut ele_buffer);
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ele_buffer);
@@ -148,6 +147,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             // gl::BlendFunc(gl::ONE, gl::ONE);
             // gl::DepthFunc(gl::ALWAYS);
             gl::CullFace(gl::BACK);
+            gl::PointSize(3.0);
         }
 
         // Sets up 'self.context.frame_state' based on polled events
@@ -178,7 +178,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
                         gl::DrawElements(
                             vao.draw_style,
                             vao.draw_count,
-                            gl::UNSIGNED_SHORT,
+                            gl::UNSIGNED_INT,
                             std::ptr::null(),
                         );
                     } else {

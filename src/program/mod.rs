@@ -4,6 +4,8 @@ pub mod error;
 pub use error::ProgramError;
 pub mod blinn_phong;
 pub mod builder;
+pub mod mesh;
+pub use mesh::Mesh;
 
 pub mod lights;
 pub use lights::{LightColor, LightSource, Position};
