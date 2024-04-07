@@ -29,6 +29,7 @@ use crate::vao::VAO;
 // Special per frame values used in the draw() call
 
 use crate::obj::Obj;
+use blinn_phong::BlinnPhong;
 
 // OpenGL Types
 use gl::types::*;

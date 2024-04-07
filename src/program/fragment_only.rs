@@ -1,42 +1,65 @@
-use super::GLProgram;
+// Trait that all GLProgram<Types> must implement
+use super::{GLDraw, GLProgram, ProgramError};
 
-use super::GLDraw;
-use crate::obj::Obj;
-use crate::program::camera::ArcBallCamera;
-use crate::program::Camera;
-use crate::program::ProgramError;
-use crate::program::{LightColor, LightSource};
-use crate::shader::ShaderPipeline;
+// Custom types to play nice with OpenGL
 use crate::types::*;
-use crate::uniform::MagicUniform;
-use crate::uniform::GL3FV;
-use crate::vao::VAO;
-use crate::window::FrameState;
-use crate::Position;
 use gl::types::*;
+
+// A way to easily implement, and update common per-frame GLSL Uniform values
+use crate::uniform::MagicUniform;
+
+// We need the context to implement GLDraw
+use crate::window::FrameState;
 use glfw::Context;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use ultraviolet::mat::{Mat3, Mat4};
-use ultraviolet::vec::Vec3;
+
+use std::ffi::c_void;
+use std::mem::size_of;
+
+// Convenience Error Type Alias
 type Result<T> = std::result::Result<T, ProgramError>;
 
+// GLProgram sub-type sub-structure
 pub struct FragmentOnly {
     uniforms: MagicUniform,
 }
 
 impl FragmentOnly {
-    pub(crate) fn new() -> Self {
+    // Generates the sub-structure AND also initializes OpenGL with the vertices it needs to
+    // support it
+    pub(crate) fn new(program_id: GLuint) -> Self {
+        // Initialize the vertices for the vertex shader since they will never change
+        let (ptr, size, stride, location) = FragmentOnly::VERTICES;
+
+        unsafe {
+            gl::UseProgram(program_id);
+            let mut vao: GLuint = 0;
+            gl::GenVertexArrays(1, &mut vao);
+            gl::BindVertexArray(vao);
+
+            // Buffer the vertices to the GPU
+            let mut buffer_id: GLuint = 0;
+            gl::GenBuffers(1, &mut buffer_id);
+            gl::BindBuffer(gl::ARRAY_BUFFER, buffer_id);
+            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
+
+            // Create our sole Vetex Attray Object
+            gl::VertexAttribPointer(location, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
+            gl::EnableVertexAttribArray(location);
+        }
         FragmentOnly::default()
     }
 
-    pub(crate) const TRIANGLE: ([f32; 9], GLsizeiptr, GLint, GLuint) = (
-        // Vertices
-        [-1.0, -1.0, 0.0, 3.0, -1.0, 0.0, -1.0, 3.0, 0.0],
+    // Since we always draw the same triangle, just store it as a constant, along with it's
+    // computed sizes, location, etc...
+    pub(crate) const TRIANGLE: [f32; 9] = [-1.0, -1.0, 0.0, 3.0, -1.0, 0.0, -1.0, 3.0, 0.0];
+    pub(crate) const VERTICES: (*const c_void, GLsizeiptr, GLint, GLuint) = (
+        // Pointer
+        FragmentOnly::TRIANGLE.as_ptr() as *const c_void,
         // Size
-        (std::mem::size_of::<f32>() * 9) as GLsizeiptr,
+        (size_of::<f32>() * 9) as GLsizeiptr,
         // Stride
-        (std::mem::size_of::<f32>() * 3) as GLint,
+        (size_of::<f32>() * 3) as GLint,
+        // Location (set in the GLSL source code)
         0,
     );
 }

@@ -1,19 +1,13 @@
-// For building a certain type of GLProgram
-use gl;
-use ultraviolet::Vec3;
+use super::{BlinnPhong, CustomShader, FragmentOnly, GLProgram, GLWindow, ProgramError};
 
-use super::{
-    blinn_phong::BlinnPhong, camera::ArcBallCamera, CustomShader, GLProgram, GLWindow, ProgramError,
-};
-type Result<T> = std::result::Result<T, ProgramError>;
-// Shaders determine, in large part, the type of the Builder
+// All GLPrograms have a ShaderPipline which is composed of at least a VertexShader and
+// FragmentShader and may optionally have additional types of shaders
 use crate::shader::{
     FragmentShader, GeometryShader, Shader, ShaderPipeline, TesselationShader, VertexShader,
 };
 
-// Convenient use of special types that work well with OpenGL
-use super::fragment_only::FragmentOnly;
-use gl::types::*;
+// // Convenience Error Type Alias
+type Result<T> = std::result::Result<T, ProgramError>;
 
 // Dummy types to create a builder system for GLProgram
 #[derive(Debug)]
@@ -49,37 +43,17 @@ impl<'a> GLProgram<'a, CustomShader> {
     where
         S: AsRef<str>,
     {
-        // Setup the GLProgram Struct
+        // Initialize a window, context and OpenGL program
         let (id, context) = initialize()?;
+        // Initialize and link shaders to the program
         let vs = Shader::<VertexShader>::fragment_only()?;
         let fragment_shader: Shader<'a, FragmentShader> =
             Shader::<'a, FragmentShader>::new(fragment_shader_source.as_ref())?;
         let shaders = ShaderPipeline::new(id, vs, fragment_shader, None, None)?;
-        let data = FragmentOnly::new();
-
-        // Initialize the vertices for the vertex shader since they will never change
-        let (vertices, size, stride, location) = FragmentOnly::TRIANGLE;
-        let ptr = vertices.as_ptr() as *const std::ffi::c_void;
-
-        unsafe {
-            // Use the program context we just created
-            gl::UseProgram(id);
-            let mut vao: GLuint = 0;
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
-            println!("vao: {}", vao);
-
-            // Buffer the vertices to the GPU
-            let mut buffer_id: GLuint = 0;
-            gl::GenBuffers(1, &mut buffer_id);
-            gl::BindBuffer(gl::ARRAY_BUFFER, buffer_id);
-            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
-            println!("buffer_id: {}", buffer_id);
-
-            // Create our sole Vetex Attray Object
-            gl::VertexAttribPointer(location, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
-            gl::EnableVertexAttribArray(location);
-        }
+        // Initialize the sub-structure of this <Type> of GLProgram
+        // This will also setup the OpenGL context with the vertex data necessary to trigger the
+        // firing of every fragment.
+        let data = FragmentOnly::new(id);
 
         Ok(GLProgram {
             id,
@@ -173,7 +147,7 @@ impl<'a, W, NoVS, NoFS> GLProgramBuilder<'a, W, NoVS, NoFS> {
 
 // Every constructor creates a new program ID, creates a window + context, and initializes the OpenGL pointers
 #[inline(always)]
-fn initialize() -> Result<(GLuint, GLWindow)> {
+fn initialize() -> Result<(gl::types::GLuint, GLWindow)> {
     // Load pointers, using the context
     let mut context = GLWindow::default()?;
     gl::load_with(|symbol| context.window.get_proc_address(symbol) as *const _);
@@ -182,6 +156,6 @@ fn initialize() -> Result<(GLuint, GLWindow)> {
 }
 
 #[inline(always)]
-fn create_program_id() -> GLuint {
+fn create_program_id() -> gl::types::GLuint {
     unsafe { gl::CreateProgram() }
 }
