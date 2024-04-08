@@ -151,9 +151,15 @@ impl<'a, Type> Shader<'a, Type> {
                     error_log.as_mut_ptr() as *mut GLchar,
                 );
 
+                let log = str::from_utf8(&error_log).unwrap_or_else(|error| {
+                    str::from_utf8(&error_log[..error.valid_up_to()])
+                        .unwrap()
+                        .into()
+                });
+
                 // Return the error log and exit
                 return Err(ShaderError::FailedToCompileShader(
-                    GLUtilityError::ErrorLog(str::from_utf8(&error_log).unwrap().into()),
+                    GLUtilityError::ErrorLog(log.to_string()),
                 ));
             }
         }

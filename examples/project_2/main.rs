@@ -1,14 +1,13 @@
-// My Libs
-use cs6600::{load_mesh, GLError, GLProgram, LightColor, Position};
+use cs6600::{GLError, GLProgram, LightColor, Position};
 
 fn main() -> Result<(), GLError> {
-    let mut program = GLProgram::phong()?;
+    // Program
+    let mut program = GLProgram::blinn()?;
 
-    let teapot = load_mesh("./objs/teapot.obj")?;
-    program.add_mesh("teapot", teapot)?;
-    let monkey = load_mesh("./objs/monkey.obj")?;
-    program.add_mesh("monkey", monkey)?;
+    // Mesh
+    program.add_mesh_from_file("teapot", "./objs/teapot.obj", gl::POINTS)?;
 
+    // Lighting
     let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.1);
     let location_1 = Position::new(-10.0, -5.0, -5.0);
     let location_2 = Position::new(10.0, -5.0, 5.0);
@@ -19,6 +18,7 @@ fn main() -> Result<(), GLError> {
     program.add_light(&location_3, &LightColor::GREEN)?;
     program.ambient_light(&ambient_light)?;
 
+    // The Show
     while program.draw().is_ok() {}
     Ok(())
 }

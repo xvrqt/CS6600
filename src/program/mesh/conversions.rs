@@ -1,6 +1,6 @@
 // Hosts conversions from the idiosyncratic format of various 3D Mesh file formats and their
 // parsers into our internal representation.
-use super::{Mesh, MeshError};
+use super::{Mesh, MeshError, UNLOADED};
 
 // Parsers
 use wavefront_obj::obj::Object;
@@ -16,7 +16,7 @@ type Result<T> = std::result::Result<T, MeshError>;
 // Extracts the vertices, normals, and UV coordinates
 // Provides an implementation of Attribute that sets these up on a VAO
 // It will use the DrawElements strategy of rendering
-pub fn load_mesh<P>(path: P) -> Result<Mesh>
+pub fn load_mesh<P>(path: P) -> Result<Mesh<UNLOADED>>
 where
     P: AsRef<Path>,
 {
@@ -27,15 +27,10 @@ where
         .and_then(|ext| match ext {
             "obj" => {
                 let file = std::fs::read_to_string(path.as_ref())?;
-
                 let o = wavefront_obj::obj::parse(file).unwrap();
-                let g = o.objects.len();
-                println!("num objects: {}", g);
-                let g = o.objects[0].geometry.len();
-                println!("num geoms: {}", g);
 
                 let obj = o.objects[0].clone();
-                let gay: crate::program::mesh::Mesh = obj.into();
+                let gay: crate::program::mesh::Mesh<UNLOADED> = obj.into();
                 Ok(gay)
             }
             _ => Err(MeshError::UnknownFileType(ext.to_string())),
@@ -43,7 +38,7 @@ where
 }
 
 // Wavefront Object (.obj)
-impl From<Object> for Mesh {
+impl From<Object> for Mesh<UNLOADED> {
     fn from(obj: Object) -> Self {
         // Construct a temporary vector that stores the per vertex data tuples so we can identify
         // repeated vertices and de-dupe them
@@ -104,6 +99,7 @@ impl From<Object> for Mesh {
             normals,
             st_coordinates,
             indices,
+            state: UNLOADED {},
         }
     }
 }

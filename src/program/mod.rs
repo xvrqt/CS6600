@@ -34,6 +34,7 @@ use std::ffi::CString;
 use self::camera::Camera;
 use fragment_only::FragmentOnly;
 mod fragment_only;
+pub use crate::attribute::Attribute;
 
 // Semantic OpenGL Program
 // #[derive(Debug)]

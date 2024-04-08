@@ -18,6 +18,7 @@ pub mod vao;
 // Types and Setting Uniform Values
 pub mod uniform;
 pub use program::mesh::load_mesh;
+mod attribute;
 // Our Wavefront Obj parses into this
 
 // Re-export for more ergnomic use

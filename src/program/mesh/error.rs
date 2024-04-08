@@ -1,3 +1,5 @@
+use crate::program::ProgramError;
+use crate::vao::VAOError;
 use crate::GLUtilityError;
 
 // Error type for source loading
@@ -6,6 +8,7 @@ pub enum MeshError {
     FailedToParseFile(String),
     UnknownFileType(String),
     Other(GLUtilityError),
+    VAO(VAOError),
 }
 
 impl std::error::Error for MeshError {}
@@ -21,6 +24,9 @@ impl std::fmt::Display for MeshError {
             MeshError::Other(error) => {
                 write!(f, "Encountered a Mesh Error: {}\n", error)
             }
+            MeshError::VAO(error) => {
+                write!(f, "Encountered a VAO Error: {}\n", error)
+            }
         }
     }
 }
@@ -29,6 +35,18 @@ impl std::fmt::Display for MeshError {
 impl From<MeshError> for crate::GLError {
     fn from(error: MeshError) -> Self {
         crate::GLError::Mesh(error)
+    }
+}
+
+impl From<MeshError> for ProgramError {
+    fn from(error: MeshError) -> Self {
+        ProgramError::Mesh(error)
+    }
+}
+
+impl From<VAOError> for MeshError {
+    fn from(error: VAOError) -> Self {
+        MeshError::VAO(error)
     }
 }
 

@@ -1,7 +1,7 @@
 pub const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
 
-    layout (location = 0) in vec4 vertices;
+    layout (location = 0) in vec3 vertices;
     layout (location = 1) in vec3 normals;
 
     uniform mat4 mv;
@@ -12,10 +12,10 @@ pub const VERTEX_SHADER_SOURCE: &str = r#"
     out vec3 mv_normal;
 
     void main() {
-       gl_Position = mvp * vertices;
+       gl_Position = mvp * vec4(vertices, 1.0);
 
        // Model - View only transforms for shading
-       mv_point = mv * vertices; 
+       mv_point = mv * vec4(vertices, 1.0);
        mv_normal = mvn * normals;
     }
 "#;

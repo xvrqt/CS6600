@@ -1,5 +1,8 @@
 use super::mesh::Mesh;
+use super::mesh::LOADED;
+use super::mesh::UNLOADED;
 use super::GLProgram;
+use crate::load_mesh;
 use crate::program::camera::ArcBallCamera;
 use crate::program::Camera;
 use crate::program::ProgramError;
@@ -11,6 +14,7 @@ use gl::types::*;
 use glfw::Context;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::path::Path;
 use ultraviolet::mat::{Mat3, Mat4};
 type Result<T> = std::result::Result<T, ProgramError>;
 
@@ -18,7 +22,7 @@ pub struct BlinnPhong {
     camera: Box<dyn Camera>,
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
-    vaos: HashMap<String, VAO>,
+    meshes: HashMap<String, Mesh<LOADED>>,
 }
 
 impl BlinnPhong {
@@ -33,7 +37,7 @@ impl Default for BlinnPhong {
             camera: Box::new(ArcBallCamera::new()),
             lights: Vec::new(),
             lights_buffer: None,
-            vaos: HashMap::new(),
+            meshes: HashMap::new(),
         }
     }
 }
@@ -90,48 +94,36 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.set_uniform("ambient_light_color", color.clone().to_vec4())
     }
 
-    // Create a new, or edit an existing, VAO
-    pub fn vao<S>(&mut self, name: S) -> &mut VAO
+    pub fn add_mesh_from_file<S, P>(
+        &mut self,
+        mesh_name: S,
+        path: P,
+        draw_style: GLuint,
+    ) -> Result<()>
     where
         S: AsRef<str>,
+        P: AsRef<Path>,
     {
-        // Return existing, or create a new VAO
-        match self.data.vaos.entry(name.as_ref().to_string()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(VAO::new(self.id)),
-        }
+        let mesh = load_mesh(path)?;
+        let mut mesh = mesh.load(self.id)?;
+        mesh.state.0.draw_style = draw_style;
+
+        self.data
+            .meshes
+            // TODO: Error on collision ?
+            .insert(mesh_name.as_ref().to_string(), mesh);
+        Ok(())
     }
 
-    // Create a new, or edit an existing, VAO
-    pub fn vao_from_obj<S>(&mut self, name: S, obj: &Mesh) -> Result<&mut Self>
+    pub fn add_mesh<S>(&mut self, mesh_name: S, mesh: Mesh<UNLOADED>) -> Result<()>
     where
         S: AsRef<str>,
     {
-        // Return existing, or create a new VAO
-        let vao = match self.data.vaos.entry(name.as_ref().to_string()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(VAO::new(self.id)),
-        };
-        // Set up the VAO state to use indices
-        let mut ele_buffer = 0;
-        let ele_buffer_ptr = obj.indices.as_ptr() as *const std::ffi::c_void;
-        let ele_buffer_size = (obj.indices.len() * std::mem::size_of::<u32>()) as isize;
-        unsafe {
-            gl::GenBuffers(1, &mut ele_buffer);
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ele_buffer);
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                ele_buffer_size,
-                ele_buffer_ptr,
-                gl::STATIC_DRAW,
-            );
-        }
-        vao.ele_buffer = Some(ele_buffer);
-        vao.attribute("vertices", obj.vertices.clone())?;
-        vao.attribute("normals", obj.normals.clone())?;
-        // vao.attribute("texture_coords", obj.uv)?;
-        vao.draw_count = obj.indices.len() as GLint;
-        Ok(self)
+        let mesh = mesh.load(self.id)?;
+        self.data
+            .meshes
+            .insert(mesh_name.as_ref().to_string(), mesh);
+        Ok(())
     }
 
     // Draws the next frame of the program
@@ -169,21 +161,18 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.set_uniform("mvn", mvn)?;
         self.set_uniform("mv", mv)?;
 
-        for vao in self.data.vaos.values() {
+        for mesh in self.data.meshes.values() {
+            let vao = &mesh.state.0;
             if vao.enabled {
                 unsafe {
                     gl::BindVertexArray(vao.id);
-                    if let Some(ele_buffer) = vao.ele_buffer {
-                        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ele_buffer);
-                        gl::DrawElements(
-                            vao.draw_style,
-                            vao.draw_count,
-                            gl::UNSIGNED_INT,
-                            std::ptr::null(),
-                        );
-                    } else {
-                        gl::DrawArrays(vao.draw_style, 0, vao.draw_count);
-                    }
+                    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, vao.ele_buffer);
+                    gl::DrawElements(
+                        vao.draw_style,
+                        vao.draw_count,
+                        gl::UNSIGNED_INT,
+                        std::ptr::null(),
+                    );
                 }
             }
         }

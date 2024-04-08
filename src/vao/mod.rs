@@ -1,5 +1,6 @@
 // Custom Error Type
 pub mod error;
+pub use crate::program::Attribute;
 pub use error::VAOError;
 // Types we defing "SetAttributePointer"
 // TODO: Implement for all types, including ultraviolet types
@@ -90,49 +91,6 @@ impl SetAttributePointer for Vec<Vec4> {
     }
 }
 
-// OpenGL attribute handle and corresponding buffer handle
-#[derive(Debug)]
-pub struct Attribute {
-    // Handle to the attribute location in the shader
-    pub id: GLuint,
-    // Handle to the backing buffer of the attribute
-    pub buffer: GLuint,
-}
-
-// Data types that implement this trait define how to set their OpenGL
-// attribute pointers
-impl Attribute {
-    pub fn new<S>(program_id: GLuint, name: S) -> Result<Self, VAOError>
-    where
-        S: AsRef<str>,
-    {
-        let id;
-        let buffer;
-        unsafe {
-            // Get the handle to where the attribute is located in the shader
-            let name = std::ffi::CString::new(name.as_ref().as_bytes())
-                .map_err(|_| VAOError::CStringConversion(name.as_ref().to_string()))?;
-            let attribute_location = gl::GetAttribLocation(program_id, name.as_ptr());
-            if attribute_location < 0 {
-                return Err(VAOError::CouldNotFindLocation(
-                    name.to_string_lossy().into_owned(),
-                ));
-            }
-
-            // Generate a buffer that we can write to
-            let mut vbo = 0;
-            gl::GenBuffers(1, &mut vbo);
-            buffer = vbo;
-
-            // Convert to GLuint from GLint
-            id = attribute_location
-                .try_into()
-                .map_err(|_| VAOError::FailedIDConversion)?;
-        }
-        Ok(Attribute { id, buffer })
-    }
-}
-
 // Represents an OpenGL Vertex Array Object - provides a handle to the VAO
 // and allows attaching attributes to it
 #[derive(Debug)]
@@ -141,7 +99,7 @@ pub struct VAO {
     pub id: GLuint,
     pub program_id: GLuint,
     pub enabled: bool,
-    pub ele_buffer: Option<GLuint>,
+    pub ele_buffer: GLuint,
     // List of named attributes and their GL IDs
     pub attributes: HashMap<String, Attribute>,
     // How to draw buffers
@@ -151,7 +109,7 @@ pub struct VAO {
 
 impl VAO {
     // Create a new VAO, using an ID created by a GLProgram
-    pub fn new(program_id: GLuint) -> Self {
+    pub fn new(program_id: GLuint, indices: Vec<u32>) -> Self {
         // Enabled by default
         let mut id = 0;
         let enabled = true;
@@ -163,11 +121,26 @@ impl VAO {
             gl::GenVertexArrays(1, &mut id);
         }
 
+        // Set up the VAO state to use indices
+        let mut ele_buffer = 0;
+        let ele_buffer_ptr = indices.as_ptr() as *const std::ffi::c_void;
+        let ele_buffer_size = (indices.len() * std::mem::size_of::<u32>()) as isize;
+        unsafe {
+            gl::GenBuffers(1, &mut ele_buffer);
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ele_buffer);
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                ele_buffer_size,
+                ele_buffer_ptr,
+                gl::STATIC_DRAW,
+            );
+        }
+
         VAO {
             id,
             program_id,
             enabled,
-            ele_buffer: None,
+            ele_buffer,
             attributes,
             draw_style,
             draw_count,
