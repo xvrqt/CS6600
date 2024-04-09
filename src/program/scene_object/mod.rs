@@ -16,20 +16,16 @@ pub(crate) struct SceneObject {
     program_id: GLuint,
     enabled: bool,
     mesh: Rc<Mesh<ATTACHED>>,
-    pub(crate) object_transform: Mat4,
+    trans_index: usize,
 }
 
 impl SceneObject {
-    pub(crate) fn new(
-        program_id: GLuint,
-        mesh: Rc<Mesh<ATTACHED>>,
-        object_transform: Mat4,
-    ) -> Self {
+    pub(crate) fn new(program_id: GLuint, mesh: Rc<Mesh<ATTACHED>>, trans_index: usize) -> Self {
         SceneObject {
             program_id,
             enabled: true,
             mesh,
-            object_transform,
+            trans_index,
         }
     }
 }
@@ -37,7 +33,12 @@ impl SceneObject {
 impl GLDraw for SceneObject {
     fn draw(&self) -> super::Result<()> {
         if self.enabled {
-            GayUniform::set_uniform(self.program_id, "object_transform", self.object_transform)?;
+            // println!("setting object_transform_index to: {}", self.trans_index);
+            GayUniform::set_uniform(
+                self.program_id,
+                "object_transform_index",
+                &crate::uniform::GL1U(self.trans_index as u32),
+            )?;
             self.mesh.draw()
         } else {
             Ok(())

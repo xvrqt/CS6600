@@ -30,7 +30,7 @@ bitflags! {
 pub struct GayUniform {}
 impl GayUniform {
     // Sets a uniform variable at the location
-    pub fn set_uniform<S, Type>(program_id: GLuint, name: S, mut value: Type) -> Result<()>
+    pub fn set_uniform<S, Type>(program_id: GLuint, name: S, value: &Type) -> Result<()>
     where
         S: AsRef<str>,
         Type: Uniform,
@@ -89,11 +89,11 @@ impl GayUniform {
 
 // Uniform Types
 pub trait Uniform {
-    fn set(&mut self, location: GLint) -> Result<()>;
+    fn set(&self, location: GLint) -> Result<()>;
 }
 
 impl Uniform for ultraviolet::mat::Mat4 {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         let ptr = self.cols.as_ptr() as *const GLfloat;
         unsafe {
             gl::UniformMatrix4fv(location, 1, gl::FALSE, ptr);
@@ -102,8 +102,19 @@ impl Uniform for ultraviolet::mat::Mat4 {
     }
 }
 
+impl Uniform for Vec<ultraviolet::mat::Mat4> {
+    fn set(&self, location: GLint) -> Result<()> {
+        let ptr = self.as_ptr() as *const GLfloat;
+        let length = self.len() as GLint;
+        unsafe {
+            gl::UniformMatrix4fv(location, length, gl::FALSE, ptr);
+        }
+        Ok(())
+    }
+}
+
 impl Uniform for ultraviolet::mat::Mat3 {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         let ptr = self.cols.as_ptr() as *const GLfloat;
         unsafe {
             gl::UniformMatrix3fv(location, 1, gl::FALSE, ptr);
@@ -113,7 +124,7 @@ impl Uniform for ultraviolet::mat::Mat3 {
 }
 
 impl Uniform for ultraviolet::vec::Vec4 {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform4f(location, self.x, self.y, self.z, self.w);
         }
@@ -126,7 +137,7 @@ impl Uniform for ultraviolet::vec::Vec4 {
 #[derive(Copy, Clone, Debug)]
 pub struct GL1F(pub GLfloat);
 impl Uniform for GL1F {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform1f(location, self.0);
         }
@@ -143,7 +154,7 @@ impl From<f32> for GL1F {
 #[derive(Copy, Clone, Debug)]
 pub struct GL2F(pub GLfloat, pub GLfloat);
 impl Uniform for GL2F {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform2f(location, self.0, self.1);
         }
@@ -155,7 +166,7 @@ impl Uniform for GL2F {
 #[derive(Copy, Clone, Debug)]
 pub struct GL3F(pub GLfloat, pub GLfloat, pub GLfloat);
 impl Uniform for GL3F {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform3f(location, self.0, self.1, self.2);
         }
@@ -167,7 +178,7 @@ impl Uniform for GL3F {
 #[derive(Copy, Clone, Debug)]
 pub struct GL4F(pub GLfloat, pub GLfloat, pub GLfloat, pub GLfloat);
 impl Uniform for GL4F {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform4f(location, self.0, self.1, self.2, self.3);
         }
@@ -179,7 +190,7 @@ impl Uniform for GL4F {
 #[derive(Copy, Clone, Debug)]
 pub struct GL1I(pub GLint);
 impl Uniform for GL1I {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform1i(location, self.0);
         }
@@ -191,7 +202,7 @@ impl Uniform for GL1I {
 #[derive(Copy, Clone, Debug)]
 pub struct GL2I(pub GLint, pub GLint);
 impl Uniform for GL2I {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform2i(location, self.0, self.1);
         }
@@ -203,7 +214,7 @@ impl Uniform for GL2I {
 #[derive(Copy, Clone, Debug)]
 pub struct GL3I(pub GLint, pub GLint, pub GLint);
 impl Uniform for GL3I {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform3i(location, self.0, self.1, self.2);
         }
@@ -215,7 +226,7 @@ impl Uniform for GL3I {
 #[derive(Copy, Clone, Debug)]
 pub struct GL4I(pub GLint, pub GLint, pub GLint, pub GLint);
 impl Uniform for GL4I {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform4i(location, self.0, self.1, self.2, self.3);
         }
@@ -227,7 +238,7 @@ impl Uniform for GL4I {
 #[derive(Copy, Clone, Debug)]
 pub struct GL1U(pub GLuint);
 impl Uniform for GL1U {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform1ui(location, self.0);
         }
@@ -239,7 +250,7 @@ impl Uniform for GL1U {
 #[derive(Copy, Clone, Debug)]
 pub struct GL2U(pub GLuint, pub GLuint);
 impl Uniform for GL2U {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform2ui(location, self.0, self.1);
         }
@@ -251,7 +262,7 @@ impl Uniform for GL2U {
 #[derive(Copy, Clone, Debug)]
 pub struct GL3U(pub GLuint, pub GLuint, pub GLuint);
 impl Uniform for GL3U {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform3ui(location, self.0, self.1, self.2);
         }
@@ -263,7 +274,7 @@ impl Uniform for GL3U {
 #[derive(Copy, Clone, Debug)]
 pub struct GL4U(pub GLuint, pub GLuint, pub GLuint, pub GLuint);
 impl Uniform for GL4U {
-    fn set(&mut self, location: GLint) -> Result<()> {
+    fn set(&self, location: GLint) -> Result<()> {
         unsafe {
             gl::Uniform4ui(location, self.0, self.1, self.2, self.3);
         }
@@ -276,8 +287,7 @@ impl Uniform for GL4U {
 /////////////
 pub struct GL1FV(pub Vec<GL1F>);
 impl Uniform for GL1FV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -294,8 +304,7 @@ impl Uniform for GL1FV {
 
 pub struct GL2FV(pub Vec<GL2F>);
 impl Uniform for GL2FV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -312,8 +321,7 @@ impl Uniform for GL2FV {
 
 pub struct GL3FV(pub Vec<GL3F>);
 impl Uniform for GL3FV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -330,8 +338,7 @@ impl Uniform for GL3FV {
 
 pub struct GL4FV(pub Vec<GL4F>);
 impl Uniform for GL4FV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -348,8 +355,7 @@ impl Uniform for GL4FV {
 
 pub struct GL1IV(pub Vec<i32>);
 impl Uniform for GL1IV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -366,8 +372,7 @@ impl Uniform for GL1IV {
 
 pub struct GL2IV(pub Vec<(i32, i32)>);
 impl Uniform for GL2IV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -383,8 +388,7 @@ impl Uniform for GL2IV {
 }
 pub struct GL3IV(pub Vec<(i32, i32, i32)>);
 impl Uniform for GL3IV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -400,8 +404,7 @@ impl Uniform for GL3IV {
 }
 pub struct GL4IV(pub Vec<(i32, i32, i32, i32)>);
 impl Uniform for GL4IV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -418,8 +421,7 @@ impl Uniform for GL4IV {
 
 pub struct GL1UV(pub Vec<u32>);
 impl Uniform for GL1UV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -436,8 +438,7 @@ impl Uniform for GL1UV {
 
 pub struct GL2UV(pub Vec<(u32, u32)>);
 impl Uniform for GL2UV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -453,8 +454,7 @@ impl Uniform for GL2UV {
 }
 pub struct GL3UV(pub Vec<(u32, u32, u32)>);
 impl Uniform for GL3UV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -470,8 +470,7 @@ impl Uniform for GL3UV {
 }
 pub struct GL4UV(pub Vec<(u32, u32, u32, u32)>);
 impl Uniform for GL4UV {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         let count: GLsizei = self
             .0
             .len()
@@ -505,8 +504,7 @@ pub struct GL3FM(
     )>,
 );
 impl Uniform for GL3FM {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         // Pointer to the vector's buffer
         let ptr = self.0.as_ptr() as *const GLfloat;
         unsafe {
@@ -566,8 +564,7 @@ pub struct GL4FM(
     )>,
 );
 impl Uniform for GL4FM {
-    fn set(&mut self, location: GLint) -> Result<()> {
-        self.0.shrink_to_fit();
+    fn set(&self, location: GLint) -> Result<()> {
         // Pointer to the vector's buffer
         let ptr = self.0.as_ptr() as *const GLfloat;
         unsafe {

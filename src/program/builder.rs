@@ -70,12 +70,14 @@ impl<'a> GLProgram<'a, CustomShader> {
         let fs = Shader::<FragmentShader>::phong()?;
         let shaders = ShaderPipeline::new(id, vs, fs, None, None)?;
         let data = BlinnPhong::new();
-        Ok(GLProgram {
+        let mut phong = GLProgram {
             id,
             context,
             shaders,
             data,
-        })
+        };
+        phong.initialize();
+        Ok(phong)
     }
     pub fn blinn() -> Result<GLProgram<'a, BlinnPhong>> {
         let (id, context) = initialize()?;
@@ -83,12 +85,15 @@ impl<'a> GLProgram<'a, CustomShader> {
         let fs = Shader::<FragmentShader>::blinn()?;
         let shaders = ShaderPipeline::new(id, vs, fs, None, None)?;
         let data = BlinnPhong::new();
-        Ok(GLProgram {
+
+        let mut blinn = GLProgram {
             id,
             context,
             shaders,
             data,
-        })
+        };
+        blinn.initialize();
+        Ok(blinn)
     }
 }
 

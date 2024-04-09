@@ -25,6 +25,8 @@ pub struct BlinnPhong {
     lights_buffer: Option<GLuint>,
     scene_objects: HashMap<String, SceneObject>,
     meshes: Vec<Rc<Mesh<ATTACHED>>>,
+    object_transforms: Rc<Vec<Mat4>>,
+    obj_buffer_id: Option<GLuint>,
     stdout: std::io::StdoutLock<'static>,
 }
 
@@ -42,6 +44,8 @@ impl Default for BlinnPhong {
             lights_buffer: None,
             scene_objects: HashMap::new(),
             meshes: Vec::new(),
+            object_transforms: Rc::new(Vec::new()),
+            obj_buffer_id: None,
             stdout: std::io::stdout().lock(),
         }
     }
@@ -60,9 +64,10 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Get location of the lights on the GPU, and length of the array CPU side
         let block_id = self.get_uniform_block_index("Lights")?;
         let num_lights = self.data.lights.len();
+        println!("Lights Block Index: {}", block_id);
 
         // Rebind the lights (This is the layout in the shader code)
-        let binding_point = 0 as GLuint;
+        let binding_point = 1 as GLuint;
 
         // Initialize a Uniform Buffer for the lights, if we haven't alreaady
         let buffer_id = match self.data.lights_buffer {
@@ -120,9 +125,87 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             mesh
         };
 
+        // Add the transform to the Program's vec
+        let obj_trans = object_transform;
+        let trans_index = self.data.object_transforms.len();
+        Rc::get_mut(&mut self.data.object_transforms)
+            .unwrap()
+            .push(obj_trans);
+
+        let block_index = self.get_uniform_block_index("Objects")?;
+        let mut block_struct_size = 0;
+        unsafe {
+            gl::GetActiveUniformBlockiv(
+                self.id,
+                block_index,
+                gl::UNIFORM_BLOCK_DATA_SIZE,
+                &mut block_struct_size,
+            );
+        }
+        println!("Block Index: {}", block_index);
+        println!("Block Struct Size: {}", block_struct_size);
+
+        // Rc::get_mut(&mut self.data.object_transforms)
+        //     .unwrap()
+        //     .shrink_to_fit();
+        let num_objects = self.data.object_transforms.len();
+        // Rebind the lights (This is the layout in the shader code)
+        let binding_point = 0 as GLuint;
+
+        // Initialize a Uniform Buffer for the lights, if we haven't alreaady
+        let buffer_id = match self.data.obj_buffer_id {
+            Some(id) => id,
+            None => {
+                let mut id = 0 as GLuint;
+                unsafe {
+                    gl::GenBuffers(1, &mut id);
+                }
+                self.data.obj_buffer_id = Some(id);
+                id
+            }
+        };
+        println!("Num Objects: {}", num_objects);
+        println!("Buffer ID: {}", buffer_id);
+        println!("Binding Point: {}", binding_point);
+
+        // // Buffer the data
+        unsafe {
+            gl::UniformBlockBinding(self.id, block_index, binding_point);
+            let ptr = self.data.object_transforms.as_ptr() as *const std::ffi::c_void;
+            // Could be error site
+            let size = (num_objects * std::mem::size_of::<Mat4>()) as GLsizeiptr;
+            gl::BindBuffer(gl::UNIFORM_BUFFER, buffer_id);
+            gl::BufferData(gl::UNIFORM_BUFFER, size, ptr, gl::DYNAMIC_DRAW);
+        }
+        // Bind the buffer and the block to the same place
+        unsafe {
+            gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer_id);
+        }
+
         let key = name;
-        let value = SceneObject::new(self.id, mesh, object_transform);
+        let value = SceneObject::new(self.id, mesh, trans_index);
         self.data.scene_objects.insert(key, value);
+        // self.update_positions()?;
+        Ok(())
+    }
+
+    pub(crate) fn initialize(&mut self) -> () {
+        unsafe {
+            gl::Enable(gl::DEPTH_TEST);
+            gl::Enable(gl::BLEND);
+            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+            // gl::BlendFunc(gl::ONE, gl::ONE);
+            // gl::DepthFunc(gl::ALWAYS);
+            gl::CullFace(gl::BACK);
+            gl::PointSize(3.0);
+        }
+
+        self.context
+            .glfw
+            .set_swap_interval(glfw::SwapInterval::None);
+    }
+
+    fn update_positions(&mut self) -> Result<()> {
         Ok(())
     }
 
@@ -132,13 +215,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             gl::UseProgram(self.id);
             gl::ClearColor(0.0, 0.0, 0.0, 0.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-            gl::Enable(gl::DEPTH_TEST);
-            gl::Enable(gl::BLEND);
-            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-            // gl::BlendFunc(gl::ONE, gl::ONE);
-            // gl::DepthFunc(gl::ALWAYS);
-            gl::CullFace(gl::BACK);
-            gl::PointSize(3.0);
         }
 
         // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
@@ -158,10 +234,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
 
     // Draws the next frame of the program
     pub fn render(&mut self) -> Result<()> {
-        self.context
-            .glfw
-            .set_swap_interval(glfw::SwapInterval::None);
-
+        self.context.glfw.poll_events();
         // Sets up 'self.context.frame_state' based on polled events
         self.context.process_events();
         // Check if we should exit
@@ -170,6 +243,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         }
 
         // Update our camera based off of keyboard input
+        // TODO: Generate the matrices in here, and only return them if they have changed
         self.data
             .camera
             .update(&mut self.context.frame_state.camera_events);
@@ -192,7 +266,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         }
 
         self.context.window.swap_buffers();
-        self.context.glfw.poll_events();
         Ok(())
     }
 

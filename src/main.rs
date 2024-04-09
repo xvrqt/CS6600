@@ -14,7 +14,7 @@ fn main() -> std::result::Result<(), GLError> {
     let teapot = Mesh::parse("./objs/teapot.obj")?;
     program.new_object("tiny_teapot", teapot.clone(), tiny_teapot)?;
     program.new_object("moved_teapot", teapot.clone(), moved_teapot)?;
-    for i in 0..5000 {
+    for i in 0..9998 {
         let mesh = teapot.clone();
 
         let x = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 100.0) - 50.0;
@@ -49,9 +49,15 @@ fn main() -> std::result::Result<(), GLError> {
     program.add_light(&location_3, &blue_light)?;
     program.ambient_light(&ambient_light)?;
 
-    Ok(program.render()?)
-    // while program.render().is_ok() {}
-    // Ok(())
+    // Ok(program.render()?)
+    let result = loop {
+        match program.render() {
+            Ok(_) => (),
+            Err(error) => break error,
+        }
+    };
+    Err(result.into())
+
     // Ok(program.draw()?)
     // So cargo-auditable doesn't crash. IDK why Rust won't return an exit code on its own.
     // Everything I read (that result implements Termination and how Command works, and how
