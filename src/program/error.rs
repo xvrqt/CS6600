@@ -2,6 +2,7 @@ use super::mesh::MeshError;
 use crate::program::scene_object::SceneObjectError;
 use crate::program::vao::VAOError;
 use crate::shader::error::ShaderError;
+use crate::uniform::UniformError;
 use crate::window::WindowError;
 
 // Error for GLProgram
@@ -17,6 +18,7 @@ pub enum ProgramError {
     Window(WindowError),
     SceneObject(SceneObjectError),
     Mesh(MeshError),
+    Uniform(UniformError),
     End,
 }
 
@@ -51,6 +53,9 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::SceneObject(error) => {
                 write!(f, "SceneObject ERROR: '{}'.\n", error)
+            }
+            ProgramError::Uniform(error) => {
+                write!(f, "Uniform ERROR: '{}'.\n", error)
             }
             ProgramError::VAOAlreadyExists(name) => {
                 write!(

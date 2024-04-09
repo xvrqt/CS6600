@@ -13,3 +13,4 @@ bitflags = "2.5.0"
 obj-rs = "0.7.1"
 wavefront_obj = "10.0.0"
 bat = "0.24.0"
+rand = { version="0.8.5", features = ["small_rng"]}

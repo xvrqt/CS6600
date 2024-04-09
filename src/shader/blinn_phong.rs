@@ -8,15 +8,17 @@ pub const VERTEX_SHADER_SOURCE: &str = r#"
     uniform mat4 mvp;
     uniform mat3 mvn;
 
+    uniform mat4 object_transform;
+
     out vec4 mv_point;
     out vec3 mv_normal;
 
     void main() {
-       gl_Position = mvp * vec4(vertices, 1.0);
+       gl_Position = mvp * object_transform * vec4(vertices, 1.0);
 
        // Model - View only transforms for shading
-       mv_point = mv * vec4(vertices, 1.0);
-       mv_normal = mvn * normals;
+       mv_point = mv * object_transform * vec4(vertices, 1.0);
+       mv_normal = transpose(inverse(mat3(mv))) * transpose(inverse(mat3(object_transform))) * normals;
     }
 "#;
 

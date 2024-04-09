@@ -83,7 +83,7 @@ impl<'a> GLProgram<'a, FragmentOnly> {
     // Checks which magic uniforms are enabled and then sets them accordingly
     fn update_magic_uniforms(&self, vars: &FrameState) -> Result<()> {
         if self.data.uniforms.contains(MagicUniform::TIME) {
-            self.set_uniform("time", GL1F(vars.time))?;
+            self.set_uniform("time", GL1F(vars.time.as_secs_f32()))?;
         }
         if self.data.uniforms.contains(MagicUniform::RESOLUTION) {
             if let Some((x, y)) = vars.resolution {

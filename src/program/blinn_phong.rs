@@ -13,6 +13,7 @@ use gl::types::*;
 use glfw::Context;
 
 use std::collections::HashMap;
+use std::io::{self, Write};
 type Result<T> = std::result::Result<T, ProgramError>;
 
 use ultraviolet::mat::{Mat3, Mat4};
@@ -94,13 +95,18 @@ impl<'a> GLProgram<'a, BlinnPhong> {
     }
 
     // TODO: Handle collisions
-    pub fn new_object<S>(&mut self, name: S, mesh: Mesh<UNATTACHED>) -> Result<()>
+    pub fn new_object<S>(
+        &mut self,
+        name: S,
+        mesh: Mesh<UNATTACHED>,
+        object_transform: Mat4,
+    ) -> Result<()>
     where
         S: AsRef<str>,
     {
         let key = name.as_ref().to_string();
         let mesh = mesh.attach(self.id)?;
-        let value = SceneObject::new(mesh);
+        let value = SceneObject::new(self.id, mesh, object_transform);
         self.data.scene_objects.insert(key, value);
         Ok(())
     }
@@ -120,6 +126,9 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             gl::CullFace(gl::BACK);
             gl::PointSize(3.0);
         }
+        self.context
+            .glfw
+            .set_swap_interval(glfw::SwapInterval::None);
 
         // Sets up 'self.context.frame_state' based on polled events
         self.context.process_events();
@@ -137,11 +146,25 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Transform for inside the Blinn-Phong Vertex Shader
         let (mvp, mv, mvn) = self.generate_view_matrices();
         self.set_uniform("mvp", mvp)?;
-        self.set_uniform("mvn", mvn)?;
+        // self.set_uniform("mvn", mvn)?;
         self.set_uniform("mv", mv)?;
 
-        for object in self.data.scene_objects.values_mut() {
+        let objects = &mut self.data.scene_objects;
+        for object in objects.values_mut() {
             object.draw()?;
+        }
+
+        // FPS / Frame Interval Counter
+        if self.context.frame_state.frame % 60 == 0 {
+            let dt_60 = self.context.frame_state.delta_t_60.as_secs_f64();
+            let dt = self.context.frame_state.delta_t.as_secs_f64();
+            print!(
+                "frame: {}\tinterval: {:.4}ms\tfps: {:.2}\r",
+                self.context.frame_state.frame,
+                dt * 1000.0,
+                60.0 / dt_60,
+            );
+            io::stdout().flush().unwrap();
         }
 
         self.context.window.swap_buffers();

@@ -26,7 +26,6 @@ use crate::shader::ShaderPipeline;
 // Create and set uniform shader values
 use crate::uniform::Uniform;
 use blinn_phong::BlinnPhong;
-use scene_object::SceneObjectError;
 
 // OpenGL Types
 use gl::types::*;

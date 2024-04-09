@@ -3,6 +3,8 @@
 pub enum UniformError {
     VectorLength,
     MatrixConversion((u8, u8)),
+    SettingUniformValue(String),
+    GetUniformLocation(String),
 }
 
 impl std::error::Error for UniformError {}
@@ -22,6 +24,12 @@ impl std::fmt::Display for UniformError {
                     a, b
                 )
             }
+            UniformError::SettingUniformValue(error) => {
+                write!(f, "Failed to set Uniform Value.\n{}", error)
+            }
+            UniformError::GetUniformLocation(name) => {
+                write!(f, "Failed to find the location for '{}'.\n", name)
+            }
         }
     }
 }
@@ -30,5 +38,11 @@ impl std::fmt::Display for UniformError {
 impl From<UniformError> for crate::GLError {
     fn from(error: UniformError) -> Self {
         crate::GLError::Uniform(error)
+    }
+}
+// Allows for painless casting into our crate's rollup error
+impl From<UniformError> for crate::program::ProgramError {
+    fn from(error: UniformError) -> Self {
+        crate::program::ProgramError::Uniform(error)
     }
 }

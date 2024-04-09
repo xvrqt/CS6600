@@ -66,6 +66,8 @@ impl GLWindow {
 
                 // Don't allow use of deprecated features
                 glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
+                // Anti-Aliasing
+                glfw.window_hint(glfw::WindowHint::Samples(Some(4)));
                 Ok(glfw)
             })
             .map_err(|glfw_init_error| WindowError::FailedToInitializeGLFW(glfw_init_error))
@@ -108,10 +110,16 @@ impl GLWindow {
     // Used in the render loop to set the FrameState
     pub fn process_events(&mut self) -> () {
         // Get Updated Time
-        let current_time = self.glfw.get_time() as f32;
-        let dt = current_time - self.frame_state.time;
-        self.frame_state.time = current_time;
-        self.frame_state.delta_t = dt;
+        let elapsed = self.frame_state.instant.elapsed();
+        if self.frame_state.frame % 60 == 0 {
+            let elapsed = self.frame_state.delta_t_60_instant.elapsed();
+            self.frame_state.delta_t_60_instant = std::time::Instant::now();
+            self.frame_state.delta_t_60 = elapsed;
+        }
+        self.frame_state.delta_t = elapsed - self.frame_state.time;
+        self.frame_state.time = elapsed;
+        self.frame_state.frame += 1;
+        let delta_t = self.frame_state.delta_t.as_secs_f32();
 
         // Clear Event Queues
         self.frame_state.window_events.clear();
@@ -169,7 +177,6 @@ impl GLWindow {
                 glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        // .push_back(CameraEvent::Movement(Direction::Forwards(dt)));
                         .push_back(CameraEvent::Rotation(Direction::Up));
                 }
                 glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
@@ -180,12 +187,12 @@ impl GLWindow {
                 glfw::WindowEvent::Key(Key::A, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push_back(CameraEvent::Rotation(Direction::Left(dt)));
+                        .push_back(CameraEvent::Rotation(Direction::Left(delta_t)));
                 }
                 glfw::WindowEvent::Key(Key::D, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push_back(CameraEvent::Rotation(Direction::Right(dt)));
+                        .push_back(CameraEvent::Rotation(Direction::Right(delta_t)));
                 }
                 glfw::WindowEvent::Key(Key::Z, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
@@ -234,13 +241,13 @@ impl GLWindow {
                     if y > 0.0 {
                         self.frame_state
                             .camera_events
-                            .push_back(CameraEvent::Movement(Direction::Forwards(dt)));
+                            .push_back(CameraEvent::Movement(Direction::Forwards(delta_t)));
 
                         // .push_back(CameraEvent::Projection(Direction::In(y)))
                     } else {
                         self.frame_state
                             .camera_events
-                            .push_back(CameraEvent::Movement(Direction::Backwards(dt)));
+                            .push_back(CameraEvent::Movement(Direction::Backwards(delta_t)));
                         // .push_back(CameraEvent::Projection(Direction::Out(y)))
                     }
                 }
@@ -253,8 +260,12 @@ impl GLWindow {
 // This is used by GLPrograms to update their magic variables
 #[derive(Debug)]
 pub struct FrameState {
-    pub time: f32,                      // Total time elapsed
-    pub delta_t: f32,                   // Time since the previous frame
+    pub time: std::time::Duration,    // Total time elapsed
+    pub delta_t: std::time::Duration, // Time since the previous frame
+    pub delta_t_60: std::time::Duration,
+    delta_t_60_instant: std::time::Instant,
+    instant: std::time::Instant,
+    pub frame: usize,
     pub resolution: Option<(f32, f32)>, // Width, Height
     pub toggle_projection: bool,
     pub mm_cursor_position: (f32, f32),
@@ -268,8 +279,12 @@ pub struct FrameState {
 impl FrameState {
     fn new(glfw: &glfw::Glfw) -> FrameState {
         FrameState {
-            time: glfw.get_time() as f32,
-            delta_t: 0.0,
+            time: std::time::Duration::from_secs(0),
+            delta_t: std::time::Duration::from_secs(0),
+            delta_t_60: std::time::Duration::from_secs(0),
+            delta_t_60_instant: std::time::Instant::now(),
+            instant: std::time::Instant::now(),
+            frame: 0,
             resolution: None, // Only contains Some() when the screen changes size to avoid needless recalculations
             toggle_projection: false,
             mm_cursor_position: (0.0, 0.0),

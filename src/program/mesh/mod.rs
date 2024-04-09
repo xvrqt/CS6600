@@ -22,7 +22,7 @@ pub enum MeshState {
     Loaded(GLuint, GLuint, GLuint),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UNATTACHED {}
 #[derive(Debug)]
 pub struct ATTACHED {
@@ -31,7 +31,7 @@ pub struct ATTACHED {
 
 // Standard internal format for 3D models, including vertex positions, per-vertex normals, and
 // per-vertex ST coordinates.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mesh<State> {
     pub(crate) vertices: Vec<Vec3>,
     pub(crate) normals: Vec<Vec3>,
