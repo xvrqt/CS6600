@@ -7,6 +7,7 @@ pub mod blinn_phong;
 pub mod builder;
 pub mod mesh;
 pub use mesh::Mesh;
+pub mod scene_object;
 
 pub mod lights;
 pub use lights::{LightColor, LightSource, Position};
@@ -25,6 +26,7 @@ use crate::shader::ShaderPipeline;
 // Create and set uniform shader values
 use crate::uniform::Uniform;
 use blinn_phong::BlinnPhong;
+use scene_object::SceneObjectError;
 
 // OpenGL Types
 use gl::types::*;

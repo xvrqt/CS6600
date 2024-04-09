@@ -1,7 +1,7 @@
 // Library Error Types
 pub use crate::{
-    program::mesh::MeshError, program::vao::VAOError, program::ProgramError, shader::ShaderError,
-    uniform::UniformError, window::WindowError,
+    program::mesh::MeshError, program::scene_object::SceneObjectError, program::vao::VAOError,
+    program::ProgramError, shader::ShaderError, uniform::UniformError, window::WindowError,
 };
 // Make error logs, and shader source errors pretty and helpful
 use bat::PrettyPrinter;
@@ -15,6 +15,7 @@ pub enum GLError {
     Uniform(UniformError),
     VAO(VAOError),
     Mesh(MeshError),
+    SceneObject(SceneObjectError),
     Other(GLUtilityError),
 }
 
@@ -39,6 +40,9 @@ impl std::fmt::Display for GLError {
             }
             GLError::Mesh(error) => {
                 write!(f, "GL Program Mesh Error:\n{}", error.to_string())
+            }
+            GLError::SceneObject(error) => {
+                write!(f, "GL Program SceneObject Error:\n{}", error.to_string())
             }
             GLError::Other(error) => {
                 write!(f, "GL Program Error:\n{}", error.to_string())

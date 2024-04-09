@@ -1,4 +1,5 @@
 use super::mesh::MeshError;
+use crate::program::scene_object::SceneObjectError;
 use crate::program::vao::VAOError;
 use crate::shader::error::ShaderError;
 use crate::window::WindowError;
@@ -14,6 +15,7 @@ pub enum ProgramError {
     VAODoesNotExist(String),
     VAO(VAOError),
     Window(WindowError),
+    SceneObject(SceneObjectError),
     Mesh(MeshError),
     End,
 }
@@ -46,6 +48,9 @@ impl std::fmt::Display for ProgramError {
             }
             ProgramError::Mesh(error) => {
                 write!(f, "Mesh ERROR: '{}'.\n", error)
+            }
+            ProgramError::SceneObject(error) => {
+                write!(f, "SceneObject ERROR: '{}'.\n", error)
             }
             ProgramError::VAOAlreadyExists(name) => {
                 write!(

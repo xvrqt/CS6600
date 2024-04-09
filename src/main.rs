@@ -5,9 +5,9 @@ fn main() -> Result<(), GLError> {
     let mut program = GLProgram::phong()?;
 
     let teapot = Mesh::parse("./objs/teapot.obj")?;
-    program.add_mesh("teapot", teapot)?;
+    program.new_object("teapot", teapot)?;
     let monkey = Mesh::parse("./objs/monkey.obj")?;
-    program.add_mesh("monkey", monkey)?;
+    program.new_object("monkey", monkey)?;
 
     let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.1);
     let location_1 = Position::new(-10.0, -5.0, -5.0);

@@ -1,6 +1,7 @@
 // Converts various 3D file types into our internal represntation 'Mesh'
 mod conversions;
 use super::vao::VAO;
+use super::GLDraw;
 pub use crate::program::Attribute;
 
 // Linear algebra types we use in our internal representation
@@ -21,7 +22,9 @@ pub enum MeshState {
     Loaded(GLuint, GLuint, GLuint),
 }
 
+#[derive(Debug)]
 pub struct UNATTACHED {}
+#[derive(Debug)]
 pub struct ATTACHED {
     pub(crate) vao: VAO,
 }
@@ -35,6 +38,24 @@ pub struct Mesh<State> {
     pub(crate) st_coordinates: Vec<Vec2>,
     pub(crate) indices: Vec<u32>,
     pub(crate) program_data: State,
+    pub(crate) draw_style: GLuint,
+}
+
+impl GLDraw for Mesh<ATTACHED> {
+    fn draw(&mut self) -> super::Result<()> {
+        let vao = &self.program_data.vao;
+        unsafe {
+            gl::BindVertexArray(vao.id);
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, vao.elements.buffer_id);
+            gl::DrawElements(
+                self.draw_style,
+                vao.elements.buffer_length,
+                gl::UNSIGNED_INT,
+                std::ptr::null(),
+            );
+        }
+        Ok(())
+    }
 }
 
 // Meshes can be created outside of a GLProgram (to save overhead in reading from disk and parsing)
@@ -50,6 +71,7 @@ impl Mesh<UNATTACHED> {
             normals,
             st_coordinates,
             indices,
+            draw_style,
             ..
         } = self;
 
@@ -67,6 +89,7 @@ impl Mesh<UNATTACHED> {
             st_coordinates,
             indices,
             program_data,
+            draw_style,
         })
     }
 
@@ -81,5 +104,11 @@ impl Mesh<UNATTACHED> {
     // Creates a Mesh from various types returned by varios 3D file parser libraries
     pub fn from_obj(obj: wavefront_obj::obj::Object) -> Mesh<UNATTACHED> {
         obj.into()
+    }
+
+    // Updates the draw style
+    // TODO: Wrap in ENUMs so we don't need to expose gl::consts
+    pub fn draw_style(&mut self, draw_style: GLuint) -> () {
+        self.draw_style = draw_style;
     }
 }

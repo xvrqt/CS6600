@@ -1,23 +1,27 @@
 use super::mesh::{Mesh, ATTACHED, UNATTACHED};
+use super::GLDraw;
 use super::GLProgram;
 use crate::program::camera::ArcBallCamera;
+use crate::program::scene_object::SceneObject;
 use crate::program::Camera;
 use crate::program::ProgramError;
 use crate::program::{LightColor, LightSource};
 use crate::types::*;
 use crate::Position;
+
 use gl::types::*;
 use glfw::Context;
+
 use std::collections::HashMap;
-use std::path::Path;
-use ultraviolet::mat::{Mat3, Mat4};
 type Result<T> = std::result::Result<T, ProgramError>;
+
+use ultraviolet::mat::{Mat3, Mat4};
 
 pub struct BlinnPhong {
     camera: Box<dyn Camera>,
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
-    meshes: HashMap<String, Mesh<ATTACHED>>,
+    scene_objects: HashMap<String, SceneObject>,
 }
 
 impl BlinnPhong {
@@ -32,7 +36,7 @@ impl Default for BlinnPhong {
             camera: Box::new(ArcBallCamera::new()),
             lights: Vec::new(),
             lights_buffer: None,
-            meshes: HashMap::new(),
+            scene_objects: HashMap::new(),
         }
     }
 }
@@ -89,34 +93,15 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.set_uniform("ambient_light_color", color.clone().to_vec4())
     }
 
-    pub fn add_mesh_from_file<S, P>(
-        &mut self,
-        mesh_name: S,
-        path: P,
-        draw_style: GLuint,
-    ) -> Result<()>
-    where
-        S: AsRef<str>,
-        P: AsRef<Path>,
-    {
-        let mesh = Mesh::parse(path)?;
-        let mut mesh = mesh.attach(self.id)?;
-
-        self.data
-            .meshes
-            // TODO: Error on collision ?
-            .insert(mesh_name.as_ref().to_string(), mesh);
-        Ok(())
-    }
-
-    pub fn add_mesh<S>(&mut self, mesh_name: S, mesh: Mesh<UNATTACHED>) -> Result<()>
+    // TODO: Handle collisions
+    pub fn new_object<S>(&mut self, name: S, mesh: Mesh<UNATTACHED>) -> Result<()>
     where
         S: AsRef<str>,
     {
+        let key = name.as_ref().to_string();
         let mesh = mesh.attach(self.id)?;
-        self.data
-            .meshes
-            .insert(mesh_name.as_ref().to_string(), mesh);
+        let value = SceneObject::new(mesh);
+        self.data.scene_objects.insert(key, value);
         Ok(())
     }
 
@@ -155,19 +140,10 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.set_uniform("mvn", mvn)?;
         self.set_uniform("mv", mv)?;
 
-        for mesh in self.data.meshes.values() {
-            let vao = &mesh.program_data.vao;
-            unsafe {
-                gl::BindVertexArray(vao.id);
-                gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, vao.elements.buffer_id);
-                gl::DrawElements(
-                    gl::TRIANGLES,
-                    vao.elements.buffer_length,
-                    gl::UNSIGNED_INT,
-                    std::ptr::null(),
-                );
-            }
+        for object in self.data.scene_objects.values_mut() {
+            object.draw()?;
         }
+
         self.context.window.swap_buffers();
         self.context.glfw.poll_events();
         Ok(())
@@ -189,3 +165,16 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         (mvp, mv, mvn)
     }
 }
+//
+// // Adds a mesh to the meshes map. Not used in the current paradigm
+// pub fn add_mesh<S>(&mut self, mesh_name: S, mesh: Mesh<UNATTACHED>) -> Result<()>
+// where
+//     S: AsRef<str>,
+// {
+//     let mesh = mesh.attach(self.id)?;
+//     self.data
+//         .meshes
+//         .insert(mesh_name.as_ref().to_string(), mesh);
+//     Ok(())
+// }
+//

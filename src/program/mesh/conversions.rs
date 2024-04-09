@@ -91,7 +91,10 @@ impl From<wavefront_obj::obj::Object> for Mesh<UNATTACHED> {
             normals.push(normal);
         }
 
+        let draw_style = gl::TRIANGLES;
+
         Mesh {
+            draw_style,
             vertices,
             normals,
             st_coordinates,
