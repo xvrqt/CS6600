@@ -1,6 +1,6 @@
 // Opening a window with an OpenGL conteext
 pub mod error;
-pub use error::{GLError, GLUtilityError};
+pub use error::{GLError, GLStatus, GLUtilityError};
 pub mod window;
 pub use program::lights::{LightColor, Position};
 

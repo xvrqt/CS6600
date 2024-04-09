@@ -1,3 +1,5 @@
+use std::process::Termination;
+
 // Library Error Types
 pub use crate::{
     program::mesh::MeshError, program::scene_object::SceneObjectError, program::vao::VAOError,
@@ -17,6 +19,45 @@ pub enum GLError {
     Mesh(MeshError),
     SceneObject(SceneObjectError),
     Other(GLUtilityError),
+}
+
+#[derive(Debug)]
+pub enum GLStatus {
+    Success,
+    Error(GLError),
+}
+
+impl std::fmt::Display for GLStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GLStatus::Error(error) => {
+                write!(f, "GL Program Error:\n{}", error.to_string())
+            }
+            GLStatus::Success => {
+                write!(f, "")
+            }
+        }
+    }
+}
+
+// Use me to match the "window EXIT" event and also change this to GLStatus and also change this to
+// pretty print errors
+impl Termination for GLStatus {
+    fn report(self) -> std::process::ExitCode {
+        match self {
+            GLStatus::Success => std::process::ExitCode::SUCCESS,
+            GLStatus::Error(error) => {
+                println!("{}", error);
+                std::process::ExitCode::FAILURE
+            }
+        }
+    }
+}
+
+impl From<GLError> for GLStatus {
+    fn from(error: GLError) -> Self {
+        GLStatus::Error(error)
+    }
 }
 
 impl std::error::Error for GLError {}

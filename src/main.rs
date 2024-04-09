@@ -1,10 +1,10 @@
 // My Libs
-use cs6600::{GLError, GLProgram, LightColor, Mesh, Position};
+use cs6600::{GLError, GLProgram, GLStatus, LightColor, Mesh, Position};
 use rand::rngs::SmallRng;
 use rand::{RngCore, SeedableRng};
 use ultraviolet;
 
-fn main() -> Result<(), GLError> {
+fn main() -> std::result::Result<(), GLError> {
     let mut rng = SmallRng::from_entropy();
     let mut program = GLProgram::blinn()?;
 
@@ -49,6 +49,10 @@ fn main() -> Result<(), GLError> {
     program.add_light(&location_3, &blue_light)?;
     program.ambient_light(&ambient_light)?;
 
-    while program.draw().is_ok() {}
-    Ok(())
+    // while program.draw().is_ok() {}
+    Ok(program.draw()?)
+    // So cargo-auditable doesn't crash. IDK why Rust won't return an exit code on its own.
+    // Everything I read (that result implements Termination and how Command works, and how
+    // auditable calls them indicates it should work, but alas).
+    // std::process::exit(0);
 }

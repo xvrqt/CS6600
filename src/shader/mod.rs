@@ -173,14 +173,14 @@ impl<'a, Type> Shader<'a, Type> {
 }
 
 // When we're done with the shader, let OpenGL know it can clean it up
-impl<'a, Type> Drop for Shader<'a, Type> {
-    // Tell OpenGL we don't need the shader around anymore
-    fn drop(&mut self) -> () {
-        unsafe {
-            gl::DeleteShader(self.id);
-        }
-    }
-}
+// impl<'a, Type> Drop for Shader<'a, Type> {
+//     // Tell OpenGL we don't need the shader around anymore
+//     fn drop(&mut self) -> () {
+//         unsafe {
+//             gl::DeleteShader(self.id);
+//         }
+//     }
+// }
 
 // Helper function that checks if linking the shaders to the program was a success
 pub(crate) fn link_shaders_success(program_id: GLuint) -> Result<()> {
