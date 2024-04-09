@@ -1,6 +1,6 @@
 use super::mesh::MeshError;
+use crate::program::vao::VAOError;
 use crate::shader::error::ShaderError;
-use crate::vao::VAOError;
 use crate::window::WindowError;
 
 // Error for GLProgram

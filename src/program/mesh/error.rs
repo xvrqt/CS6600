@@ -1,5 +1,5 @@
+use crate::program::vao::VAOError;
 use crate::program::ProgramError;
-use crate::vao::VAOError;
 use crate::GLUtilityError;
 
 // Error type for source loading

@@ -1,12 +1,12 @@
 // My Libs
-use cs6600::{load_mesh, GLError, GLProgram, LightColor, Position};
+use cs6600::{GLError, GLProgram, LightColor, Mesh, Position};
 
 fn main() -> Result<(), GLError> {
     let mut program = GLProgram::phong()?;
 
-    let teapot = load_mesh("./objs/teapot.obj")?;
+    let teapot = Mesh::parse("./objs/teapot.obj")?;
     program.add_mesh("teapot", teapot)?;
-    let monkey = load_mesh("./objs/monkey.obj")?;
+    let monkey = Mesh::parse("./objs/monkey.obj")?;
     program.add_mesh("monkey", monkey)?;
 
     let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.1);

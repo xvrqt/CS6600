@@ -14,11 +14,9 @@ pub mod shader;
 pub use shader::Shader;
 // Loading shader, object, texture files
 // Creating and managing Vertex Array Objects
-pub mod vao;
 // Types and Setting Uniform Values
+pub use program::mesh::Mesh;
 pub mod uniform;
-pub use program::mesh::load_mesh;
-mod attribute;
 // Our Wavefront Obj parses into this
 
 // Re-export for more ergnomic use

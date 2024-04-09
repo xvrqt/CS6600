@@ -1,7 +1,7 @@
 // Library Error Types
 pub use crate::{
-    program::mesh::MeshError, program::ProgramError, shader::ShaderError, uniform::UniformError,
-    vao::VAOError, window::WindowError,
+    program::mesh::MeshError, program::vao::VAOError, program::ProgramError, shader::ShaderError,
+    uniform::UniformError, window::WindowError,
 };
 // Make error logs, and shader source errors pretty and helpful
 use bat::PrettyPrinter;

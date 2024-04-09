@@ -1,9 +1,6 @@
 // Hosts conversions from the idiosyncratic format of various 3D Mesh file formats and their
 // parsers into our internal representation.
-use super::{Mesh, MeshError, UNLOADED};
-
-// Parsers
-use wavefront_obj::obj::Object;
+use super::{Mesh, MeshError, UNATTACHED};
 
 // Linear algebra types we use in our internal representation
 use ultraviolet::vec::Vec3;
@@ -16,7 +13,7 @@ type Result<T> = std::result::Result<T, MeshError>;
 // Extracts the vertices, normals, and UV coordinates
 // Provides an implementation of Attribute that sets these up on a VAO
 // It will use the DrawElements strategy of rendering
-pub fn load_mesh<P>(path: P) -> Result<Mesh<UNLOADED>>
+pub fn load_mesh<P>(path: P) -> Result<Mesh<UNATTACHED>>
 where
     P: AsRef<Path>,
 {
@@ -27,19 +24,19 @@ where
         .and_then(|ext| match ext {
             "obj" => {
                 let file = std::fs::read_to_string(path.as_ref())?;
-                let o = wavefront_obj::obj::parse(file).unwrap();
+                // TODO: Error needed here
+                let obj = wavefront_obj::obj::parse(file).unwrap();
 
-                let obj = o.objects[0].clone();
-                let gay: crate::program::mesh::Mesh<UNLOADED> = obj.into();
-                Ok(gay)
+                let obj = obj.objects[0].clone();
+                Ok(obj.into())
             }
             _ => Err(MeshError::UnknownFileType(ext.to_string())),
         })
 }
 
 // Wavefront Object (.obj)
-impl From<Object> for Mesh<UNLOADED> {
-    fn from(obj: Object) -> Self {
+impl From<wavefront_obj::obj::Object> for Mesh<UNATTACHED> {
+    fn from(obj: wavefront_obj::obj::Object) -> Self {
         // Construct a temporary vector that stores the per vertex data tuples so we can identify
         // repeated vertices and de-dupe them
         let mut vtn_tuples = Vec::new();
@@ -99,7 +96,7 @@ impl From<Object> for Mesh<UNLOADED> {
             normals,
             st_coordinates,
             indices,
-            state: UNLOADED {},
+            program_data: UNATTACHED {},
         }
     }
 }

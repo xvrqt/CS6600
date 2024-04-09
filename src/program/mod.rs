@@ -1,6 +1,7 @@
 // #![allow(dead_code)]
 // Import and Re-Export our Error Type
 pub mod error;
+pub mod vao;
 pub use error::ProgramError;
 pub mod blinn_phong;
 pub mod builder;
@@ -34,7 +35,7 @@ use std::ffi::CString;
 use self::camera::Camera;
 use fragment_only::FragmentOnly;
 mod fragment_only;
-pub use crate::attribute::Attribute;
+pub use crate::program::vao::attribute::Attribute;
 
 // Semantic OpenGL Program
 // #[derive(Debug)]

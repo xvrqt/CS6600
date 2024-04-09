@@ -1,18 +1,13 @@
-use super::mesh::Mesh;
-use super::mesh::LOADED;
-use super::mesh::UNLOADED;
+use super::mesh::{Mesh, ATTACHED, UNATTACHED};
 use super::GLProgram;
-use crate::load_mesh;
 use crate::program::camera::ArcBallCamera;
 use crate::program::Camera;
 use crate::program::ProgramError;
 use crate::program::{LightColor, LightSource};
 use crate::types::*;
-use crate::vao::VAO;
 use crate::Position;
 use gl::types::*;
 use glfw::Context;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::Path;
 use ultraviolet::mat::{Mat3, Mat4};
@@ -22,7 +17,7 @@ pub struct BlinnPhong {
     camera: Box<dyn Camera>,
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
-    meshes: HashMap<String, Mesh<LOADED>>,
+    meshes: HashMap<String, Mesh<ATTACHED>>,
 }
 
 impl BlinnPhong {
@@ -104,9 +99,8 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         S: AsRef<str>,
         P: AsRef<Path>,
     {
-        let mesh = load_mesh(path)?;
-        let mut mesh = mesh.load(self.id)?;
-        mesh.state.0.draw_style = draw_style;
+        let mesh = Mesh::parse(path)?;
+        let mut mesh = mesh.attach(self.id)?;
 
         self.data
             .meshes
@@ -115,11 +109,11 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         Ok(())
     }
 
-    pub fn add_mesh<S>(&mut self, mesh_name: S, mesh: Mesh<UNLOADED>) -> Result<()>
+    pub fn add_mesh<S>(&mut self, mesh_name: S, mesh: Mesh<UNATTACHED>) -> Result<()>
     where
         S: AsRef<str>,
     {
-        let mesh = mesh.load(self.id)?;
+        let mesh = mesh.attach(self.id)?;
         self.data
             .meshes
             .insert(mesh_name.as_ref().to_string(), mesh);
@@ -162,18 +156,16 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.set_uniform("mv", mv)?;
 
         for mesh in self.data.meshes.values() {
-            let vao = &mesh.state.0;
-            if vao.enabled {
-                unsafe {
-                    gl::BindVertexArray(vao.id);
-                    gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, vao.ele_buffer);
-                    gl::DrawElements(
-                        vao.draw_style,
-                        vao.draw_count,
-                        gl::UNSIGNED_INT,
-                        std::ptr::null(),
-                    );
-                }
+            let vao = &mesh.program_data.vao;
+            unsafe {
+                gl::BindVertexArray(vao.id);
+                gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, vao.elements.buffer_id);
+                gl::DrawElements(
+                    gl::TRIANGLES,
+                    vao.elements.buffer_length,
+                    gl::UNSIGNED_INT,
+                    std::ptr::null(),
+                );
             }
         }
         self.context.window.swap_buffers();
