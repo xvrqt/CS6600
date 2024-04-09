@@ -23,6 +23,7 @@ pub struct BlinnPhong {
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
     scene_objects: HashMap<String, SceneObject>,
+    stdout: std::io::StdoutLock<'static>,
 }
 
 impl BlinnPhong {
@@ -38,6 +39,7 @@ impl Default for BlinnPhong {
             lights: Vec::new(),
             lights_buffer: None,
             scene_objects: HashMap::new(),
+            stdout: std::io::stdout().lock(),
         }
     }
 }
@@ -158,13 +160,15 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         if self.context.frame_state.frame % 60 == 0 {
             let dt_60 = self.context.frame_state.delta_t_60.as_secs_f64();
             let dt = self.context.frame_state.delta_t.as_secs_f64();
-            print!(
+            write!(
+                self.data.stdout,
                 "frame: {}\tinterval: {:.4}ms\tfps: {:.2}\r",
                 self.context.frame_state.frame,
                 dt * 1000.0,
                 60.0 / dt_60,
-            );
-            io::stdout().flush().unwrap();
+            )
+            .unwrap();
+            self.data.stdout.flush().unwrap();
         }
 
         self.context.window.swap_buffers();
