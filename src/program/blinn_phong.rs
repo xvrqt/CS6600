@@ -14,6 +14,7 @@ use glfw::Context;
 
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::rc::{Rc, Weak};
 type Result<T> = std::result::Result<T, ProgramError>;
 
 use ultraviolet::mat::{Mat3, Mat4};
@@ -23,6 +24,7 @@ pub struct BlinnPhong {
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
     scene_objects: HashMap<String, SceneObject>,
+    meshes: Vec<Rc<Mesh<ATTACHED>>>,
     stdout: std::io::StdoutLock<'static>,
 }
 
@@ -39,6 +41,7 @@ impl Default for BlinnPhong {
             lights: Vec::new(),
             lights_buffer: None,
             scene_objects: HashMap::new(),
+            meshes: Vec::new(),
             stdout: std::io::stdout().lock(),
         }
     }
@@ -106,15 +109,24 @@ impl<'a> GLProgram<'a, BlinnPhong> {
     where
         S: AsRef<str>,
     {
-        let key = name.as_ref().to_string();
-        let mesh = mesh.attach(self.id)?;
+        // Check if this mesh already exists
+        let name = name.as_ref().to_string();
+        let mesh = if let Some(mesh) = self.data.meshes.iter().find(|m| m.name == mesh.name) {
+            mesh.clone()
+        } else {
+            let mesh = mesh.attach(self.id)?;
+            let mesh = Rc::new(mesh);
+            self.data.meshes.push(mesh.clone());
+            mesh
+        };
+
+        let key = name;
         let value = SceneObject::new(self.id, mesh, object_transform);
         self.data.scene_objects.insert(key, value);
         Ok(())
     }
 
-    // Draws the next frame of the program
-    pub fn draw(&mut self) -> Result<()> {
+    fn draw(&self) -> Result<()> {
         // Set OpenGL State for this Program
         unsafe {
             gl::UseProgram(self.id);
@@ -128,6 +140,24 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             gl::CullFace(gl::BACK);
             gl::PointSize(3.0);
         }
+
+        // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
+        // Transform for inside the Blinn-Phong Vertex Shader
+        let (mvp, mv, mvn) = self.generate_view_matrices();
+        self.set_uniform("mvp", mvp)?;
+        self.set_uniform("mvn", mvn)?;
+        self.set_uniform("mv", mv)?;
+
+        let objects = &self.data.scene_objects;
+        for object in objects.values() {
+            object.draw()?;
+        }
+
+        Ok(())
+    }
+
+    // Draws the next frame of the program
+    pub fn render(&mut self) -> Result<()> {
         self.context
             .glfw
             .set_swap_interval(glfw::SwapInterval::None);
@@ -144,17 +174,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             .camera
             .update(&mut self.context.frame_state.camera_events);
 
-        // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
-        // Transform for inside the Blinn-Phong Vertex Shader
-        let (mvp, mv, mvn) = self.generate_view_matrices();
-        self.set_uniform("mvp", mvp)?;
-        // self.set_uniform("mvn", mvn)?;
-        self.set_uniform("mv", mv)?;
-
-        let objects = &mut self.data.scene_objects;
-        for object in objects.values_mut() {
-            object.draw()?;
-        }
+        self.draw()?;
 
         // FPS / Frame Interval Counter
         if self.context.frame_state.frame % 60 == 0 {
@@ -179,7 +199,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
     // Help function to generate the view matrices used for setting vertex position and normals for
     // Blinn-Phong Shaders
     // TODO: Move to Camera impl ?
-    fn generate_view_matrices(&mut self) -> (Mat4, Mat4, Mat3) {
+    fn generate_view_matrices(&self) -> (Mat4, Mat4, Mat3) {
         // Camera-Space
         let mv = self.data.camera.view_matrix();
         // Canonical View Volume

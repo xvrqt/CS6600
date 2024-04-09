@@ -57,7 +57,7 @@ pub struct GLProgram<'a, Type> {
 // All GLProgram Types have to implement a standard draw() call which draws the program contents to
 // its context/window.
 pub trait GLDraw {
-    fn draw(&mut self) -> Result<()>;
+    fn draw(&self) -> Result<()>;
 }
 
 // Dummy types that represent different GLPrograms with different abilities built-in

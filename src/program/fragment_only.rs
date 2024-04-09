@@ -92,17 +92,8 @@ impl<'a> GLProgram<'a, FragmentOnly> {
         }
         Ok(())
     }
-}
 
-impl<'a> GLDraw for GLProgram<'a, FragmentOnly> {
-    fn draw(&mut self) -> Result<()> {
-        // Set OpenGL State for this Program
-        unsafe {
-            gl::UseProgram(self.id);
-            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
-
+    fn render(&mut self) -> Result<()> {
         // Sets up 'self.context.frame_state' based on polled events
         self.context.glfw.poll_events();
         self.context.process_events();
@@ -111,15 +102,28 @@ impl<'a> GLDraw for GLProgram<'a, FragmentOnly> {
         if self.context.window.should_close() {
             return Err(ProgramError::End);
         }
-
         // Update any magic uniform variables
         self.update_magic_uniforms(&self.context.frame_state)?;
+
+        self.draw()?;
+        self.context.window.swap_buffers();
+        Ok(())
+    }
+}
+
+impl<'a> GLDraw for GLProgram<'a, FragmentOnly> {
+    fn draw(&self) -> Result<()> {
+        // Set OpenGL State for this Program
+        unsafe {
+            gl::UseProgram(self.id);
+            gl::ClearColor(0.0, 0.0, 0.0, 0.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
 
         // Draw our single triangle
         unsafe {
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
-        self.context.window.swap_buffers();
 
         Ok(())
     }

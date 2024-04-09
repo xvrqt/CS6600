@@ -25,9 +25,9 @@ where
             "obj" => {
                 let file = std::fs::read_to_string(path.as_ref())?;
                 // TODO: Error needed here
-                let obj = wavefront_obj::obj::parse(file).unwrap();
-
-                let obj = obj.objects[0].clone();
+                let mut objects = wavefront_obj::obj::parse(file).unwrap().objects;
+                // TODO: Support multiple objects per parse
+                let obj = objects.swap_remove(0);
                 Ok(obj.into())
             }
             _ => Err(MeshError::UnknownFileType(ext.to_string())),
@@ -91,9 +91,11 @@ impl From<wavefront_obj::obj::Object> for Mesh<UNATTACHED> {
             normals.push(normal);
         }
 
+        let name = obj.name;
         let draw_style = gl::TRIANGLES;
 
         Mesh {
+            name,
             draw_style,
             vertices,
             normals,

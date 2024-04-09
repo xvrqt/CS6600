@@ -33,6 +33,7 @@ pub struct ATTACHED {
 // per-vertex ST coordinates.
 #[derive(Debug, Clone)]
 pub struct Mesh<State> {
+    pub(crate) name: String,
     pub(crate) vertices: Vec<Vec3>,
     pub(crate) normals: Vec<Vec3>,
     pub(crate) st_coordinates: Vec<Vec2>,
@@ -42,7 +43,7 @@ pub struct Mesh<State> {
 }
 
 impl GLDraw for Mesh<ATTACHED> {
-    fn draw(&mut self) -> super::Result<()> {
+    fn draw(&self) -> super::Result<()> {
         let vao = &self.program_data.vao;
         unsafe {
             gl::BindVertexArray(vao.id);
@@ -67,6 +68,7 @@ impl Mesh<UNATTACHED> {
     pub(crate) fn attach(self, program_id: GLuint) -> Result<Mesh<ATTACHED>> {
         // Move everything except `program_data`
         let Mesh {
+            name,
             vertices,
             normals,
             st_coordinates,
@@ -84,6 +86,7 @@ impl Mesh<UNATTACHED> {
         let program_data = ATTACHED { vao };
 
         Ok(Mesh {
+            name,
             vertices,
             normals,
             st_coordinates,

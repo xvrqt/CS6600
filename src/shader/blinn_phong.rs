@@ -18,7 +18,7 @@ pub const VERTEX_SHADER_SOURCE: &str = r#"
 
        // Model - View only transforms for shading
        mv_point = mv * object_transform * vec4(vertices, 1.0);
-       mv_normal = transpose(inverse(mat3(mv))) * transpose(inverse(mat3(object_transform))) * normals;
+       mv_normal = mvn * transpose(inverse(mat3(object_transform))) * normals;
     }
 "#;
 
