@@ -1,6 +1,6 @@
 // Hosts conversions from the idiosyncratic format of various 3D Mesh file formats and their
 // parsers into our internal representation.
-use super::{Mesh, MeshError, UNATTACHED};
+use super::{DrawStyle, Mesh, MeshError, Unattached};
 
 // Linear algebra types we use in our internal representation
 use ultraviolet::vec::Vec3;
@@ -13,7 +13,8 @@ type Result<T> = std::result::Result<T, MeshError>;
 // Extracts the vertices, normals, and UV coordinates
 // Provides an implementation of Attribute that sets these up on a VAO
 // It will use the DrawElements strategy of rendering
-pub fn load_mesh<P>(path: P) -> Result<Mesh<UNATTACHED>>
+#[inline(always)]
+pub(crate) fn load_mesh<P>(path: P) -> Result<Mesh<Unattached>>
 where
     P: AsRef<Path>,
 {
@@ -35,7 +36,7 @@ where
 }
 
 // Wavefront Object (.obj)
-impl From<wavefront_obj::obj::Object> for Mesh<UNATTACHED> {
+impl From<wavefront_obj::obj::Object> for Mesh<Unattached> {
     fn from(obj: wavefront_obj::obj::Object) -> Self {
         // Construct a temporary vector that stores the per vertex data tuples so we can identify
         // repeated vertices and de-dupe them
@@ -92,16 +93,17 @@ impl From<wavefront_obj::obj::Object> for Mesh<UNATTACHED> {
         }
 
         let name = obj.name;
-        let draw_style = gl::TRIANGLES;
+        let draw_style = DrawStyle::Triangles;
 
         Mesh {
             name,
             draw_style,
-            vertices,
-            normals,
-            st_coordinates,
-            indices,
-            program_data: UNATTACHED {},
+            data: Unattached {
+                vertices,
+                normals,
+                st_coordinates,
+                indices,
+            },
         }
     }
 }

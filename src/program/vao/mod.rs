@@ -45,30 +45,16 @@ pub struct VAO {
 impl VAO {
     // Create a new VAO for for a GLProgram. Pass the elements array to be sent to the GPU, and a
     // list of attributes to be be associated with this VAO, and connected to the element array
-    pub fn new<B>(
-        program_id: GLuint,
-        indices: &Vec<u32>,
-        attributes: Option<&Vec<(String, &B)>>,
-    ) -> Result<Self>
-    where
-        B: SetAttributePointer + std::fmt::Debug,
-    {
+    pub fn new(program_id: GLuint, indices: &Vec<u32>) -> Result<Self> {
         // Create our new VAO
         let id = Self::get_id();
         let elements = Self::create_element_array(indices);
-        let mut vao = VAO {
+        let vao = VAO {
             id,
             elements,
             program_id,
             attributes: HashMap::new(),
         };
-
-        // Attach the passed attributes to it
-        if let Some(attributes) = attributes {
-            for (name, buffer) in attributes {
-                vao.add_attribute(name, *buffer, false)?;
-            }
-        }
 
         Ok(vao)
     }
@@ -119,13 +105,9 @@ impl VAO {
 
         unsafe {
             gl::UseProgram(self.program_id);
-            println!("Program ID: {}", self.program_id);
             gl::BindBuffer(gl::ARRAY_BUFFER, attribute.buffer_id);
-            println!("Buffer ID: {}", attribute.buffer_id);
             gl::BindVertexArray(self.id);
-            println!("VAO ID: {}", self.id);
             gl::EnableVertexAttribArray(attribute.location);
-            println!("Attribute ID: {}", attribute.location);
 
             // Sets up how to pull from the buffer, and how many times to pull from the buffer
             buffer.set_attribute_pointer(attribute.location)?;
@@ -147,5 +129,44 @@ impl VAO {
         }
 
         Ok(self)
+    }
+
+    // Attaches a buffer to a named attribute location in the shader code, and informs
+    // OpenGL how to pull from it.
+    pub fn update_attribute<S, B>(&self, name: S, buffer: &B, instanced: bool) -> Result<()>
+    where
+        S: AsRef<str>,
+        B: SetAttributePointer + std::fmt::Debug,
+    {
+        let attribute = self
+            .attributes
+            .get(name.as_ref())
+            .ok_or(VAOError::CouldNotFindAttribute(name.as_ref().to_string()))?;
+
+        unsafe {
+            gl::UseProgram(self.program_id);
+            gl::BindBuffer(gl::ARRAY_BUFFER, attribute.buffer_id);
+            gl::BindVertexArray(self.id);
+            gl::EnableVertexAttribArray(attribute.location);
+
+            // Sets up how to pull from the buffer, and how many times to pull from the buffer
+            buffer.set_attribute_pointer(attribute.location)?;
+
+            if instanced {
+                gl::EnableVertexAttribArray(attribute.location);
+                gl::EnableVertexAttribArray(attribute.location + 1);
+                gl::EnableVertexAttribArray(attribute.location + 2);
+                gl::EnableVertexAttribArray(attribute.location + 3);
+                gl::VertexAttribDivisor(attribute.location, 1);
+                gl::VertexAttribDivisor(attribute.location + 1, 1);
+                gl::VertexAttribDivisor(attribute.location + 2, 1);
+                gl::VertexAttribDivisor(attribute.location + 3, 1);
+            }
+
+            // Unbind Targets
+            gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+            gl::BindVertexArray(0);
+        }
+        Ok(())
     }
 }

@@ -8,6 +8,7 @@ pub enum VAOError {
     CStringConversion(String),
     FailedIDConversion,
     CouldNotFindLocation(String),
+    CouldNotFindAttribute(String),
 }
 
 impl std::error::Error for VAOError {}
@@ -37,6 +38,9 @@ impl std::fmt::Display for VAOError {
             }
             VAOError::AttributeAlreadyExists(name) => {
                 write!(f, "Attribute: {} already exists for this VAO.", name)
+            }
+            VAOError::CouldNotFindAttribute(name) => {
+                write!(f, "Could not find attribute: {}", name)
             }
         }
     }

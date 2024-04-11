@@ -1,4 +1,4 @@
-use super::mesh::{Mesh, ATTACHED, UNATTACHED};
+use super::mesh::{Attached, Mesh, Unattached};
 use super::GLDraw;
 use super::GLProgram;
 use crate::program::camera::ArcBallCamera;
@@ -23,8 +23,8 @@ pub struct BlinnPhong {
     camera: Box<dyn Camera>,
     lights: Vec<LightSource>,
     lights_buffer: Option<GLuint>,
-    scene_objects: HashMap<String, SceneObject>,
-    meshes: Vec<Rc<Mesh<ATTACHED>>>,
+    scene_objects: HashMap<String, Rc<SceneObject>>,
+    meshes: HashMap<String, Mesh<Attached>>,
     object_transforms: Rc<Vec<Mat4>>,
     obj_buffer_id: Option<GLuint>,
     stdout: std::io::StdoutLock<'static>,
@@ -43,7 +43,7 @@ impl Default for BlinnPhong {
             lights: Vec::new(),
             lights_buffer: None,
             scene_objects: HashMap::new(),
-            meshes: Vec::new(),
+            meshes: HashMap::new(),
             object_transforms: Rc::new(Vec::new()),
             obj_buffer_id: None,
             stdout: std::io::stdout().lock(),
@@ -53,6 +53,38 @@ impl Default for BlinnPhong {
 
 // Used to create a GLProgram
 impl<'a> GLProgram<'a, BlinnPhong> {
+    // Add a mesh to the scene
+    pub fn attach_mesh(&mut self, mesh: Mesh<Unattached>) -> Result<()> {
+        let key = mesh.name.clone();
+        let value = mesh.attach(self.id)?;
+        self.data.meshes.insert(key, value);
+        Ok(())
+    }
+
+    // Instantiates a mesh as a new, named, object. Transform is a Mat4 representing the affine
+    // transformation of the object in world space.
+    pub fn create_object<S>(&mut self, name: S, mesh_name: S, transform: Mat4) -> ()
+    where
+        S: AsRef<str>,
+    {
+        // Create a new SceneObject
+        let object = SceneObject::new(transform);
+        let object = Rc::new(object);
+        let mesh_object = Rc::downgrade(&object);
+
+        // Look up the mesh
+        let key = mesh_name.as_ref();
+        let mesh = self.data.meshes.get_mut(key).unwrap();
+
+        // Insert a weak reference to the object into the Mesh's own storage
+        mesh.data.objects.push(mesh_object);
+
+        // Insert the object into GLProgram's own map
+        let key = name.as_ref().to_string();
+        let value = object;
+        self.data.scene_objects.insert(key, value);
+    }
+
     // Adds a light to the scene
     pub fn add_light(&mut self, position: &Position, color: &LightColor) -> Result<()> {
         // Transform into homogeneous 3D coordinates, and add full opacity to the color value
@@ -104,43 +136,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.set_uniform("ambient_light_color", color.clone().to_vec4())
     }
 
-    // TODO: Handle collisions
-    pub fn new_object<S>(
-        &mut self,
-        name: S,
-        mesh: Mesh<UNATTACHED>,
-        object_transform: Mat4,
-    ) -> Result<()>
-    where
-        S: AsRef<str>,
-    {
-        // Check if this mesh already exists
-        let name = name.as_ref().to_string();
-        let mesh = if let Some(mesh) = self.data.meshes.iter().find(|m| m.name == mesh.name) {
-            let mesh = mesh.clone();
-            mesh
-        } else {
-            let mesh = mesh.attach(self.id)?;
-            let mesh = Rc::new(mesh);
-            self.data.meshes.push(mesh.clone());
-
-            mesh
-        };
-
-        // Add the transform to the Program's vec
-        let obj_trans = object_transform;
-        let trans_index = self.data.object_transforms.len();
-        Rc::get_mut(&mut self.data.object_transforms)
-            .unwrap()
-            .push(obj_trans);
-
-        let key = name;
-        let value = SceneObject::new(self.id, mesh, trans_index);
-        self.data.scene_objects.insert(key, value);
-        // self.update_positions()?;
-        Ok(())
-    }
-
     pub(crate) fn initialize(&mut self) -> () {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
@@ -155,18 +150,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.context
             .glfw
             .set_swap_interval(glfw::SwapInterval::None);
-    }
-
-    pub fn update_positions(&mut self) -> Result<()> {
-        for mesh in self.data.meshes.iter_mut() {
-            let mesh = Rc::make_mut(mesh);
-            mesh.program_data.vao.add_attribute(
-                "object_transforms",
-                &(*self.data.object_transforms),
-                true,
-            )?;
-        }
-        Ok(())
     }
 
     fn draw(&self) -> Result<()> {
@@ -184,11 +167,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // self.set_uniform("mvn", mvn)?;
         // self.set_uniform("mv", mv)?;
 
-        // let objects = &self.data.scene_objects;
-        // for object in objects.values() {
-        //     object.draw()?;
-        // }
-        for mesh in &self.data.meshes {
+        for mesh in self.data.meshes.values() {
             mesh.draw()?;
         }
 

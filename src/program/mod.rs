@@ -1,42 +1,35 @@
 // #![allow(dead_code)]
 // Import and Re-Export our Error Type
-pub mod error;
-pub mod vao;
-pub use error::ProgramError;
 pub mod blinn_phong;
 pub mod builder;
-pub mod mesh;
-pub use mesh::Mesh;
-pub mod scene_object;
-
-pub mod lights;
-pub use lights::{LightColor, LightSource, Position};
-
-pub use camera::Projection;
-pub use window::FrameState;
-
-use crate::window::GLWindow;
-type Result<T> = std::result::Result<T, ProgramError>;
-
 pub mod camera;
-use crate::window;
+pub mod error;
+mod fragment_only;
+pub mod lights;
+pub mod mesh;
+pub mod scene_object;
+pub mod vao;
 
-// Programs must attach at least a Vertex and Fragment Shader
 use crate::shader::ShaderPipeline;
-// Create and set uniform shader values
 use crate::uniform::Uniform;
+use crate::window;
 use blinn_phong::BlinnPhong;
+pub use camera::{Camera, Projection};
+pub use error::ProgramError;
+use fragment_only::FragmentOnly;
+pub use lights::{LightColor, LightSource, Position};
+pub use mesh::Mesh;
+pub use vao::attribute::Attribute;
+pub use window::{FrameState, GLWindow};
+
+// Error Types
+type Result<T> = std::result::Result<T, ProgramError>;
 
 // OpenGL Types
 use gl::types::*;
 
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
 use std::ffi::CString;
-
-use self::camera::Camera;
-use fragment_only::FragmentOnly;
-mod fragment_only;
-pub use crate::program::vao::attribute::Attribute;
 
 // Semantic OpenGL Program
 // #[derive(Debug)]
@@ -67,7 +60,7 @@ pub struct CustomShader;
 // Functions commong to all GLProgram types
 impl<'a, Any> GLProgram<'a, Any> {
     // Sets a uniform variable at the location
-    pub fn set_uniform<S, Type>(&self, name: S, mut value: Type) -> Result<()>
+    pub fn set_uniform<S, Type>(&self, name: S, value: Type) -> Result<()>
     where
         S: AsRef<str>,
         Type: Uniform,
