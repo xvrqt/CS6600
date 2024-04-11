@@ -17,18 +17,18 @@ fn main() -> std::result::Result<(), GLError> {
     for i in 0..9998 {
         let mesh = teapot.clone();
 
-        let x = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 100.0) - 50.0;
-        let y = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 100.0) - 50.0;
-        let z = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 100.0) - 50.0;
+        let x = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
+        let y = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
+        let z = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
         let translate = ultraviolet::Mat4::from_translation(ultraviolet::vec::Vec3::new(x, y, z));
         let scale = f32::powf(
             0.5,
             ((rng.next_u32() as f32 / std::u32::MAX as f32) * 5.0) - 0.5,
         );
         let scale = ultraviolet::mat::Mat4::from_scale(scale);
-        let r = (rng.next_u32() as f32 / std::u32::MAX as f32) * 2.0 * std::f32::consts::PI;
-        let y = (rng.next_u32() as f32 / std::u32::MAX as f32) * 2.0 * std::f32::consts::PI;
-        let p = (rng.next_u32() as f32 / std::u32::MAX as f32) * 2.0 * std::f32::consts::PI;
+        let r = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
+        let y = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
+        let p = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
         let rotate = ultraviolet::mat::Mat4::from_euler_angles(r, p, y);
         let transformed_teapot = translate * scale * rotate;
         program.new_object(i.to_string().as_str(), mesh, transformed_teapot)?;
@@ -37,17 +37,18 @@ fn main() -> std::result::Result<(), GLError> {
     // program.new_object("monkey", monkey)?;
 
     let ambient_light = LightColor::new(1.0, 1.0, 1.0, 0.01);
-    let red_light = LightColor::new(1.0, 0.0, 0.0, 0.5);
-    let green_light = LightColor::new(0.0, 1.0, 0.0, 0.5);
-    let blue_light = LightColor::new(0.0, 0.0, 1.0, 0.5);
+    let red_light = LightColor::new(1.0, 0.0, 0.0, 1.0);
+    let green_light = LightColor::new(0.0, 1.0, 0.0, 1.0);
+    let blue_light = LightColor::new(0.0, 0.0, 1.0, 1.0);
     let location_1 = Position::new(-50.0, 0.0, 0.0);
     let location_2 = Position::new(0.0, -50.0, 0.0);
-    let location_3 = Position::new(0.0, 0.0, -50.0);
+    let location_3 = Position::new(50.0, 0.0, 0.0);
 
     program.add_light(&location_1, &red_light)?;
     program.add_light(&location_2, &green_light)?;
     program.add_light(&location_3, &blue_light)?;
     program.ambient_light(&ambient_light)?;
+    program.update_positions()?;
 
     // Ok(program.render()?)
     let result = loop {

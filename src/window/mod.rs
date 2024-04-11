@@ -177,12 +177,12 @@ impl GLWindow {
                 glfw::WindowEvent::Key(Key::W, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push_back(CameraEvent::Rotation(Direction::Up));
+                        .push_back(CameraEvent::Movement(Direction::Forwards(10.0)));
                 }
                 glfw::WindowEvent::Key(Key::S, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
                         .camera_events
-                        .push_back(CameraEvent::Rotation(Direction::Down));
+                        .push_back(CameraEvent::Movement(Direction::Backwards(10.0)));
                 }
                 glfw::WindowEvent::Key(Key::A, _, Action::Press | Action::Repeat, _) => {
                     self.frame_state
@@ -241,13 +241,13 @@ impl GLWindow {
                     if y > 0.0 {
                         self.frame_state
                             .camera_events
-                            .push_back(CameraEvent::Movement(Direction::Forwards(delta_t)));
+                            .push_back(CameraEvent::Movement(Direction::Forwards(y)));
 
                         // .push_back(CameraEvent::Projection(Direction::In(y)))
                     } else {
                         self.frame_state
                             .camera_events
-                            .push_back(CameraEvent::Movement(Direction::Backwards(delta_t)));
+                            .push_back(CameraEvent::Movement(Direction::Backwards(-y)));
                         // .push_back(CameraEvent::Projection(Direction::Out(y)))
                     }
                 }

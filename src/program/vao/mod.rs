@@ -1,4 +1,5 @@
 // Custom Error Type
+use std::fmt::Debug;
 pub mod error;
 pub use crate::program::Attribute;
 pub use error::VAOError;
@@ -18,7 +19,7 @@ use std::{collections::HashMap, vec::Vec};
 use std::ffi::c_void;
 use std::mem::size_of;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ElementIndices {
     // The buffer that holds the element indices used for OpenGL's `glDrawElements()` function
     pub buffer_id: GLuint,
@@ -28,7 +29,7 @@ pub struct ElementIndices {
 
 // Represents an OpenGL Vertex Array Object - provides a handle to the VAO
 // and allows attaching attributes to it
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VAO {
     // GL ID of this VAO, and the name of this VAO
     pub id: GLuint,
@@ -50,7 +51,7 @@ impl VAO {
         attributes: Option<&Vec<(String, &B)>>,
     ) -> Result<Self>
     where
-        B: SetAttributePointer,
+        B: SetAttributePointer + std::fmt::Debug,
     {
         // Create our new VAO
         let id = Self::get_id();
@@ -65,7 +66,7 @@ impl VAO {
         // Attach the passed attributes to it
         if let Some(attributes) = attributes {
             for (name, buffer) in attributes {
-                vao.add_attribute(name, *buffer)?;
+                vao.add_attribute(name, *buffer, false)?;
             }
         }
 
@@ -105,10 +106,10 @@ impl VAO {
 
     // Attaches a buffer to a named attribute location in the shader code, and informs
     // OpenGL how to pull from it.
-    pub fn add_attribute<S, B>(&mut self, name: S, buffer: &B) -> Result<&mut VAO>
+    pub fn add_attribute<S, B>(&mut self, name: S, buffer: &B, instanced: bool) -> Result<&mut VAO>
     where
         S: AsRef<str>,
-        B: SetAttributePointer,
+        B: SetAttributePointer + std::fmt::Debug,
     {
         // let program_id = get_program_id()?;
         let attribute = match self.attributes.entry(name.as_ref().to_string()) {
@@ -118,12 +119,27 @@ impl VAO {
 
         unsafe {
             gl::UseProgram(self.program_id);
-            gl::BindVertexArray(self.id);
+            println!("Program ID: {}", self.program_id);
             gl::BindBuffer(gl::ARRAY_BUFFER, attribute.buffer_id);
+            println!("Buffer ID: {}", attribute.buffer_id);
+            gl::BindVertexArray(self.id);
+            println!("VAO ID: {}", self.id);
             gl::EnableVertexAttribArray(attribute.location);
+            println!("Attribute ID: {}", attribute.location);
 
             // Sets up how to pull from the buffer, and how many times to pull from the buffer
             buffer.set_attribute_pointer(attribute.location)?;
+
+            if instanced {
+                gl::EnableVertexAttribArray(attribute.location);
+                gl::EnableVertexAttribArray(attribute.location + 1);
+                gl::EnableVertexAttribArray(attribute.location + 2);
+                gl::EnableVertexAttribArray(attribute.location + 3);
+                gl::VertexAttribDivisor(attribute.location, 1);
+                gl::VertexAttribDivisor(attribute.location + 1, 1);
+                gl::VertexAttribDivisor(attribute.location + 2, 1);
+                gl::VertexAttribDivisor(attribute.location + 3, 1);
+            }
 
             // Unbind Targets
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);

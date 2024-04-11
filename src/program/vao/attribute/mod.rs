@@ -6,7 +6,7 @@ use ultraviolet::vec::*;
 type Result<T> = std::result::Result<T, VAOError>;
 
 // OpenGL attribute handle and corresponding buffer handle
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attribute {
     // Attribute location in the shader
     pub location: GLuint,
@@ -21,8 +21,8 @@ impl Attribute {
     where
         S: AsRef<str>,
     {
-        let mut location = 0;
-        let mut buffer_id = 0;
+        let location;
+        let buffer_id;
         unsafe {
             // Get the handle to where the attribute is located in the shader
             let name = std::ffi::CString::new(name.as_ref().as_bytes())
@@ -30,7 +30,9 @@ impl Attribute {
             let attribute_location = gl::GetAttribLocation(program_id, name.as_ptr());
             if attribute_location < 0 {
                 // TODO: Make a proper error type
-                return Err(VAOError::CouldNotFindLocation("gay".to_string()));
+                return Err(VAOError::CouldNotFindLocation(
+                    name.to_string_lossy().to_string(),
+                ));
             }
 
             // Generate a buffer that we can write to
@@ -52,7 +54,6 @@ impl Attribute {
 // Arrays of Vec3<f32>'s 'know' how to set up their attribute pointers
 pub struct GLAV3(pub Vec<GL3F>);
 pub trait SetAttributePointer {
-    // TODO: This doesn't need to return anything anymore
     fn set_attribute_pointer(&self, id: GLuint) -> Result<()>;
 }
 impl SetAttributePointer for GL3FV {
@@ -98,6 +99,49 @@ impl SetAttributePointer for Vec<Vec3> {
             gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
             // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
             gl::VertexAttribPointer(id, 3, gl::FLOAT, gl::FALSE, element_size, ptr::null());
+        }
+        Ok(())
+    }
+}
+
+impl SetAttributePointer for Vec<ultraviolet::mat::Mat4> {
+    fn set_attribute_pointer(&self, id: GLuint) -> Result<()> {
+        // Pointer to the vector's buffer
+        let ptr = self.as_ptr() as *const std::ffi::c_void;
+        let size = (self.len() * std::mem::size_of::<ultraviolet::mat::Mat4>()) as GLsizeiptr;
+        let element_size = (std::mem::size_of::<ultraviolet::mat::Mat4>()) as GLint;
+        let vec4_size = std::mem::size_of::<ultraviolet::vec::Vec4>();
+        println!("vec4 size: {}", vec4_size);
+        unsafe {
+            // Send the data to the GPU
+            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
+            // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
+            println!("Attribute Location: {}", id);
+            gl::VertexAttribPointer(id, 4, gl::FLOAT, gl::FALSE, element_size, ptr::null());
+            gl::VertexAttribPointer(
+                id + 1,
+                4,
+                gl::FLOAT,
+                gl::FALSE,
+                element_size,
+                (1 * vec4_size) as *const gl::types::GLvoid,
+            );
+            gl::VertexAttribPointer(
+                id + 2,
+                4,
+                gl::FLOAT,
+                gl::FALSE,
+                element_size,
+                (2 * vec4_size) as *const GLvoid,
+            );
+            gl::VertexAttribPointer(
+                id + 3,
+                4,
+                gl::FLOAT,
+                gl::FALSE,
+                element_size,
+                (3 * vec4_size) as *const GLvoid,
+            );
         }
         Ok(())
     }

@@ -24,7 +24,7 @@ pub enum MeshState {
 
 #[derive(Debug, Clone)]
 pub struct UNATTACHED {}
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ATTACHED {
     pub(crate) vao: VAO,
 }
@@ -48,11 +48,12 @@ impl GLDraw for Mesh<ATTACHED> {
         unsafe {
             gl::BindVertexArray(vao.id);
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, vao.elements.buffer_id);
-            gl::DrawElements(
+            gl::DrawElementsInstanced(
                 self.draw_style,
                 vao.elements.buffer_length,
                 gl::UNSIGNED_INT,
                 std::ptr::null(),
+                10000,
             );
         }
         Ok(())

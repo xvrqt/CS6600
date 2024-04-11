@@ -33,12 +33,6 @@ impl SceneObject {
 impl GLDraw for SceneObject {
     fn draw(&self) -> super::Result<()> {
         if self.enabled {
-            // println!("setting object_transform_index to: {}", self.trans_index);
-            GayUniform::set_uniform(
-                self.program_id,
-                "object_transform_index",
-                &crate::uniform::GL1U(self.trans_index as u32),
-            )?;
             self.mesh.draw()
         } else {
             Ok(())

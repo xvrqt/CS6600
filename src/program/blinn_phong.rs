@@ -117,11 +117,13 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Check if this mesh already exists
         let name = name.as_ref().to_string();
         let mesh = if let Some(mesh) = self.data.meshes.iter().find(|m| m.name == mesh.name) {
-            mesh.clone()
+            let mesh = mesh.clone();
+            mesh
         } else {
             let mesh = mesh.attach(self.id)?;
             let mesh = Rc::new(mesh);
             self.data.meshes.push(mesh.clone());
+
             mesh
         };
 
@@ -131,56 +133,6 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         Rc::get_mut(&mut self.data.object_transforms)
             .unwrap()
             .push(obj_trans);
-
-        let block_index = self.get_uniform_block_index("Objects")?;
-        let mut block_struct_size = 0;
-        unsafe {
-            gl::GetActiveUniformBlockiv(
-                self.id,
-                block_index,
-                gl::UNIFORM_BLOCK_DATA_SIZE,
-                &mut block_struct_size,
-            );
-        }
-        println!("Block Index: {}", block_index);
-        println!("Block Struct Size: {}", block_struct_size);
-
-        // Rc::get_mut(&mut self.data.object_transforms)
-        //     .unwrap()
-        //     .shrink_to_fit();
-        let num_objects = self.data.object_transforms.len();
-        // Rebind the lights (This is the layout in the shader code)
-        let binding_point = 0 as GLuint;
-
-        // Initialize a Uniform Buffer for the lights, if we haven't alreaady
-        let buffer_id = match self.data.obj_buffer_id {
-            Some(id) => id,
-            None => {
-                let mut id = 0 as GLuint;
-                unsafe {
-                    gl::GenBuffers(1, &mut id);
-                }
-                self.data.obj_buffer_id = Some(id);
-                id
-            }
-        };
-        println!("Num Objects: {}", num_objects);
-        println!("Buffer ID: {}", buffer_id);
-        println!("Binding Point: {}", binding_point);
-
-        // // Buffer the data
-        unsafe {
-            gl::UniformBlockBinding(self.id, block_index, binding_point);
-            let ptr = self.data.object_transforms.as_ptr() as *const std::ffi::c_void;
-            // Could be error site
-            let size = (num_objects * std::mem::size_of::<Mat4>()) as GLsizeiptr;
-            gl::BindBuffer(gl::UNIFORM_BUFFER, buffer_id);
-            gl::BufferData(gl::UNIFORM_BUFFER, size, ptr, gl::DYNAMIC_DRAW);
-        }
-        // Bind the buffer and the block to the same place
-        unsafe {
-            gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer_id);
-        }
 
         let key = name;
         let value = SceneObject::new(self.id, mesh, trans_index);
@@ -205,7 +157,15 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             .set_swap_interval(glfw::SwapInterval::None);
     }
 
-    fn update_positions(&mut self) -> Result<()> {
+    pub fn update_positions(&mut self) -> Result<()> {
+        for mesh in self.data.meshes.iter_mut() {
+            let mesh = Rc::make_mut(mesh);
+            mesh.program_data.vao.add_attribute(
+                "object_transforms",
+                &(*self.data.object_transforms),
+                true,
+            )?;
+        }
         Ok(())
     }
 
@@ -221,12 +181,15 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Transform for inside the Blinn-Phong Vertex Shader
         let (mvp, mv, mvn) = self.generate_view_matrices();
         self.set_uniform("mvp", mvp)?;
-        self.set_uniform("mvn", mvn)?;
-        self.set_uniform("mv", mv)?;
+        // self.set_uniform("mvn", mvn)?;
+        // self.set_uniform("mv", mv)?;
 
-        let objects = &self.data.scene_objects;
-        for object in objects.values() {
-            object.draw()?;
+        // let objects = &self.data.scene_objects;
+        // for object in objects.values() {
+        //     object.draw()?;
+        // }
+        for mesh in &self.data.meshes {
+            mesh.draw()?;
         }
 
         Ok(())

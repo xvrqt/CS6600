@@ -81,15 +81,15 @@ impl ArcBallCamera {
     // Updates the camera's position in world-space
     fn update_position(&mut self, movement: &Direction) {
         match *movement {
-            Direction::Forwards(_) => {
-                self.radius -= 1.0;
+            Direction::Forwards(mag) => {
+                self.radius -= 1.0 * mag;
                 if self.radius < 0.11 {
                     self.radius = 0.11;
                 }
             }
 
-            Direction::Backwards(_) => {
-                self.radius += 1.0;
+            Direction::Backwards(mag) => {
+                self.radius += 1.0 * mag;
             }
             // Direction::Left(mag) => self.position -= self.camera_x * camera_speed * mag,
             // Direction::Right(mag) => self.position += self.camera_x * camera_speed * mag,

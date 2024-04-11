@@ -3,25 +3,18 @@ pub const VERTEX_SHADER_SOURCE: &str = r#"
 
     layout (location = 0) in vec3 vertices;
     layout (location = 1) in vec3 normals;
+    layout (location = 2) in mat4 object_transforms;
 
-    uniform mat4 mv;
     uniform mat4 mvp;
-    uniform mat3 mvn;
-
-    layout (std140, binding = 1) uniform Objects {
-        mat4 object_transforms[1024];
-    };
-    uniform uint object_transform_index;
 
     out vec4 mv_point;
     out vec3 mv_normal;
 
     void main() {
-        mat4 object_transform_matrix = object_transforms[object_transform_index % 1024];
-        gl_Position = mvp * object_transform_matrix * vec4(vertices, 1.0);
+        gl_Position = mvp * object_transforms * vec4(vertices, 1.0);
         // Model - View only transforms for shading
-        mv_point = mv * object_transform_matrix * vec4(vertices, 1.0);
-        mv_normal = mvn * transpose(inverse(mat3(object_transform_matrix))) * normals;
+        mv_point = object_transforms * vec4(vertices, 1.0);
+        mv_normal = transpose(inverse(mat3(object_transforms))) * normals;
     }
 "#;
 
@@ -58,10 +51,9 @@ pub const BLINN_FRAGMENT_SHADER_SOURCE: &str = r#"
         vec4 final_color = vec4(0,0,0,1);
         for(uint i = 0; i < num_lights; i++) {
             vec4 light_color = vec4(vec3(lights[i].color), 1.0) * lights[i].color.w;
-            vec4 new_light_pos = mv * lights[i].position;
-            new_light_pos = new_light_pos - mv_point;
-            new_light_pos = normalize(-new_light_pos);
-            vec3 light_direction = vec3(new_light_pos);
+            vec4 light_pos = lights[i].position;
+            float light_distance =  length(light_pos - mv_point);
+            vec3 light_direction = vec3(normalize(light_pos - mv_point));
 
             // Geometry Term
             float cos_theta = dot(mv_normal, vec3(light_direction));
@@ -82,7 +74,9 @@ pub const BLINN_FRAGMENT_SHADER_SOURCE: &str = r#"
 
 
             // Output to screen
-            final_color += light_color * (diffuse + specular);
+            // Clamp ?
+            float light_attenuation = 1.0 / (pow(light_distance,0.5) + 1.0);
+            final_color += light_color * light_attenuation * (diffuse + specular);
         }
 
         // Ambient Light
@@ -125,9 +119,9 @@ pub const PHONG_FRAGMENT_SHADER_SOURCE: &str = r#"
         vec4 final_color = vec4(0,0,0,1);
         for(uint i = 0; i < num_lights; i++) {
             vec4 light_color = vec4(vec3(lights[i].color), 1.0) * lights[i].color.w;
-            vec4 new_light_pos = mv * lights[i].position;
+            vec4 new_light_pos = lights[i].position;
             new_light_pos = new_light_pos - mv_point;
-            new_light_pos = normalize(-new_light_pos);
+            new_light_pos = normalize(new_light_pos);
             vec3 light_direction = vec3(new_light_pos);
 
             // Geometry Term
@@ -138,14 +132,10 @@ pub const PHONG_FRAGMENT_SHADER_SOURCE: &str = r#"
             vec4 diffuse = kd * geometry_term;
 
             // Specular Term
-            vec3 reflection = 2.0 * dot(mv_normal, light_direction) * mv_normal - light_direction;
-            reflection = normalize(reflection);
             vec3 view_direction = normalize(vec3(-mv_point));
-
             vec3 half_angle = normalize(light_direction + view_direction);
 
-            float cos_phi = dot(reflection, view_direction);
-            cos_phi = dot(half_angle, mv_normal);
+            float cos_phi = dot(half_angle, mv_normal);
             cos_phi = max(cos_phi, 0.0);
             vec4 ks = vec4(1.0, 1.0, 1.0, 1.0);
             vec4 specular = ks * pow(cos_phi, 1000);
