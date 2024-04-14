@@ -1,20 +1,30 @@
 pub const VERTEX_SHADER_SOURCE: &str = r#"
     #version 460 core
 
+    // Vertices in model space
     layout (location = 0) in vec3 vertices;
+    // Normal pseudo-vectors in model space
     layout (location = 1) in vec3 normals;
-    layout (location = 2) in mat4 object_transforms;
+    // Per object model-world transforms
+    layout (location = 2) in mat4 object_mw_transforms;
+    // location = 3,4,5 reserved by `object_mw_transforms`
+    // Per object model-world normal pseudo-vector transform
+    layout (location = 6) in mat3 object_mw_normal_transforms;
+    // location = 7,8 reserved by `object_mw_normal_transforms`
 
+    // View-Projection transformation matrix
     uniform mat4 mvp;
+    uniform mat4 mv;
+    uniform mat3 mvn;
 
     out vec4 mv_point;
     out vec3 mv_normal;
 
     void main() {
-        gl_Position = mvp * object_transforms * vec4(vertices, 1.0);
+        gl_Position = mvp * object_mw_transforms * vec4(vertices, 1.0);
         // Model - View only transforms for shading
-        mv_point = object_transforms * vec4(vertices, 1.0);
-        mv_normal = transpose(inverse(mat3(object_transforms))) * normals;
+        mv_point = mv * object_mw_transforms * vec4(vertices, 1.0);
+        mv_normal = mvn * object_mw_normal_transforms * normals;
     }
 "#;
 
@@ -51,8 +61,7 @@ pub const BLINN_FRAGMENT_SHADER_SOURCE: &str = r#"
         vec4 final_color = vec4(0,0,0,1);
         for(uint i = 0; i < num_lights; i++) {
             vec4 light_color = vec4(vec3(lights[i].color), 1.0) * lights[i].color.w;
-            vec4 light_pos = lights[i].position;
-            float light_distance =  length(light_pos - mv_point);
+            vec4 light_pos = mv * lights[i].position;
             vec3 light_direction = vec3(normalize(light_pos - mv_point));
 
             // Geometry Term
@@ -75,8 +84,7 @@ pub const BLINN_FRAGMENT_SHADER_SOURCE: &str = r#"
 
             // Output to screen
             // Clamp ?
-            float light_attenuation = 1.0 / (pow(light_distance,0.5) + 1.0);
-            final_color += light_color * light_attenuation * (diffuse + specular);
+            final_color += light_color * (diffuse + specular);
         }
 
         // Ambient Light
@@ -119,10 +127,8 @@ pub const PHONG_FRAGMENT_SHADER_SOURCE: &str = r#"
         vec4 final_color = vec4(0,0,0,1);
         for(uint i = 0; i < num_lights; i++) {
             vec4 light_color = vec4(vec3(lights[i].color), 1.0) * lights[i].color.w;
-            vec4 new_light_pos = lights[i].position;
-            new_light_pos = new_light_pos - mv_point;
-            new_light_pos = normalize(new_light_pos);
-            vec3 light_direction = vec3(new_light_pos);
+            vec4 light_pos = mv * lights[i].position;
+            vec3 light_direction = vec3(normalize(light_pos - mv_point));
 
             // Geometry Term
             float cos_theta = dot(mv_normal, vec3(light_direction));
@@ -142,6 +148,7 @@ pub const PHONG_FRAGMENT_SHADER_SOURCE: &str = r#"
 
 
             // Output to screen
+            // Clamp ?
             final_color += light_color * (diffuse + specular);
         }
 

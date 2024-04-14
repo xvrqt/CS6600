@@ -25,8 +25,6 @@ pub struct BlinnPhong {
     lights_buffer: Option<GLuint>,
     scene_objects: HashMap<String, Rc<SceneObject>>,
     meshes: HashMap<String, Mesh<Attached>>,
-    object_transforms: Rc<Vec<Mat4>>,
-    obj_buffer_id: Option<GLuint>,
     stdout: std::io::StdoutLock<'static>,
 }
 
@@ -44,8 +42,6 @@ impl Default for BlinnPhong {
             lights_buffer: None,
             scene_objects: HashMap::new(),
             meshes: HashMap::new(),
-            object_transforms: Rc::new(Vec::new()),
-            obj_buffer_id: None,
             stdout: std::io::stdout().lock(),
         }
     }
@@ -164,8 +160,8 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Transform for inside the Blinn-Phong Vertex Shader
         let (mvp, mv, mvn) = self.generate_view_matrices();
         self.set_uniform("mvp", mvp)?;
-        // self.set_uniform("mvn", mvn)?;
-        // self.set_uniform("mv", mv)?;
+        self.set_uniform("mvn", mvn)?;
+        self.set_uniform("mv", mv)?;
 
         for mesh in self.data.meshes.values() {
             mesh.draw()?;

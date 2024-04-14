@@ -112,17 +112,6 @@ impl VAO {
             // Sets up how to pull from the buffer, and how many times to pull from the buffer
             buffer.set_attribute_pointer(attribute.location)?;
 
-            if instanced {
-                gl::EnableVertexAttribArray(attribute.location);
-                gl::EnableVertexAttribArray(attribute.location + 1);
-                gl::EnableVertexAttribArray(attribute.location + 2);
-                gl::EnableVertexAttribArray(attribute.location + 3);
-                gl::VertexAttribDivisor(attribute.location, 1);
-                gl::VertexAttribDivisor(attribute.location + 1, 1);
-                gl::VertexAttribDivisor(attribute.location + 2, 1);
-                gl::VertexAttribDivisor(attribute.location + 3, 1);
-            }
-
             // Unbind Targets
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             gl::BindVertexArray(0);
@@ -151,17 +140,6 @@ impl VAO {
 
             // Sets up how to pull from the buffer, and how many times to pull from the buffer
             buffer.set_attribute_pointer(attribute.location)?;
-
-            if instanced {
-                gl::EnableVertexAttribArray(attribute.location);
-                gl::EnableVertexAttribArray(attribute.location + 1);
-                gl::EnableVertexAttribArray(attribute.location + 2);
-                gl::EnableVertexAttribArray(attribute.location + 3);
-                gl::VertexAttribDivisor(attribute.location, 1);
-                gl::VertexAttribDivisor(attribute.location + 1, 1);
-                gl::VertexAttribDivisor(attribute.location + 2, 1);
-                gl::VertexAttribDivisor(attribute.location + 3, 1);
-            }
 
             // Unbind Targets
             gl::BindBuffer(gl::ARRAY_BUFFER, 0);

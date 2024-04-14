@@ -15,7 +15,7 @@ type Result<T> = std::result::Result<T, MeshError>;
 
 // Standard Library
 use std::path::Path;
-use std::rc::{Rc, Weak};
+use std::rc::Weak;
 
 // Internal format for 3D Models
 #[derive(Debug, Clone)]
@@ -32,6 +32,7 @@ pub struct Unattached {
     pub(crate) normals: Vec<Vec3>,
     pub(crate) st_coordinates: Vec<Vec2>,
     pub(crate) indices: Vec<u32>,
+    pub(crate) boundaries: [Vec3; 8],
 }
 
 // We buffer the mesh data to the GPU and drop it to free memory, leaving only an OpenGL VAO in its
@@ -40,6 +41,7 @@ pub struct Unattached {
 pub struct Attached {
     pub(crate) vao: VAO,
     pub(crate) objects: Vec<Weak<SceneObject>>,
+    pub(crate) boundaries: [Vec3; 8],
     pub(crate) program_id: GLuint,
 }
 
@@ -68,6 +70,7 @@ impl GLDraw for Mesh<Attached> {
         // Iterate over all the scene objects, checking if they're enabled, and collating their
         // transforms into a contiguous array to be buffered to the GPU
         let mut transforms = Vec::new();
+        let mut normal_transforms = Vec::new();
         for object in self.data.objects.iter() {
             // The Scene Object may have been removed
             // TODO: Handle the removal by changing the Vec of SceneObjects
@@ -78,13 +81,20 @@ impl GLDraw for Mesh<Attached> {
                     if let Some(transform) = object.transform {
                         transforms.push(transform);
                     }
+
+                    if let Some(normals) = object.normal_transform {
+                        normal_transforms.push(normals);
+                    }
                 }
             }
         }
         // Buffer the transform data to the GPU
         self.data
             .vao
-            .update_attribute("object_transforms", &transforms, true)?;
+            .update_attribute("object_mw_transforms", &transforms, true)?;
+        self.data
+            .vao
+            .update_attribute("object_mw_normal_transforms", &normal_transforms, true)?;
 
         let vao = &self.data.vao;
         // This might be wrong at some point - i.e. if we start doing partial buffer updates
@@ -123,6 +133,7 @@ impl Mesh<Unattached> {
                     normals,
                     st_coordinates,
                     indices,
+                    boundaries,
                 },
             draw_style,
             ..
@@ -132,14 +143,17 @@ impl Mesh<Unattached> {
         let mut vao = VAO::new(program_id, &indices)?;
         // Attach these buffers as attributes when creating our VAO
         let object_transforms = vec![ultraviolet::Mat4::identity()];
+        let object_normals = vec![ultraviolet::Mat3::identity()];
         vao.add_attribute("vertices", &vertices, false)?;
         vao.add_attribute("normals", &normals, false)?;
-        vao.add_attribute("object_transforms", &object_transforms, false)?;
+        vao.add_attribute("object_mw_transforms", &object_transforms, false)?;
+        vao.add_attribute("object_mw_normal_transforms", &object_normals, false)?;
 
         let objects = Vec::new();
         let data = Attached {
             vao,
             objects,
+            boundaries,
             program_id,
         };
 

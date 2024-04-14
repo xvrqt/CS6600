@@ -92,6 +92,42 @@ impl From<wavefront_obj::obj::Object> for Mesh<Unattached> {
             normals.push(normal);
         }
 
+        // Go through the list of vertices and record the largest/smallest point of every basis
+        // (max_x, least_x, max_y, least_y, max_z, least_z)
+        let mut boundary_points = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        for vertex in vertices.iter() {
+            let Vec3 { x, y, z } = vertex;
+            if *x > boundary_points.0 {
+                boundary_points.0 = *x;
+            }
+            if *x < boundary_points.1 {
+                boundary_points.1 = *x;
+            }
+            if *y > boundary_points.2 {
+                boundary_points.2 = *y;
+            }
+            if *y < boundary_points.3 {
+                boundary_points.3 = *y;
+            }
+            if *z > boundary_points.4 {
+                boundary_points.4 = *z;
+            }
+            if *y < boundary_points.5 {
+                boundary_points.5 = *z;
+            }
+        }
+        // Convert the boundary points into the 8 vertices of a rectangular prism
+        let boundaries = [
+            Vec3::new(boundary_points.1, boundary_points.2, boundary_points.5),
+            Vec3::new(boundary_points.1, boundary_points.2, boundary_points.4),
+            Vec3::new(boundary_points.0, boundary_points.2, boundary_points.5),
+            Vec3::new(boundary_points.0, boundary_points.2, boundary_points.4),
+            Vec3::new(boundary_points.1, boundary_points.3, boundary_points.5),
+            Vec3::new(boundary_points.1, boundary_points.3, boundary_points.4),
+            Vec3::new(boundary_points.0, boundary_points.3, boundary_points.5),
+            Vec3::new(boundary_points.0, boundary_points.3, boundary_points.4),
+        ];
+
         let name = obj.name;
         let draw_style = DrawStyle::Triangles;
 
@@ -103,6 +139,7 @@ impl From<wavefront_obj::obj::Object> for Mesh<Unattached> {
                 normals,
                 st_coordinates,
                 indices,
+                boundaries,
             },
         }
     }
