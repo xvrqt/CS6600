@@ -77,7 +77,7 @@ impl<T, Value> InterfaceBlock<Uniform, T, Value, Unattached<Value>> {
         self,
         program_id: GLuint,
         binding_point: GLuint,
-    ) -> Result<Rc<InterfaceBlock<Uniform, T, Value, Attached>>> {
+    ) -> Result<InterfaceBlock<Uniform, T, Value, Attached>> {
         unsafe {
             gl::UseProgram(program_id);
         }
@@ -116,7 +116,7 @@ impl<T, Value> InterfaceBlock<Uniform, T, Value, Unattached<Value>> {
             packing_type: PhantomData,
         };
 
-        Ok(Rc::from(attached))
+        Ok(attached)
     }
     pub(crate) fn key(&self) -> Rc<str> {
         let name = self.name.to_string_lossy();

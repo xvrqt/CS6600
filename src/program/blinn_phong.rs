@@ -1,6 +1,8 @@
 use super::mesh::{Attached, Mesh, Unattached};
 use super::GLDraw;
 use super::GLProgram;
+use crate::interface_blocks::InterfaceBlock;
+use crate::interface_blocks::InterfaceBuffer;
 use crate::program::camera::ArcBallCamera;
 use crate::program::scene_object::SceneObject;
 use crate::program::Camera;
@@ -23,7 +25,14 @@ use ultraviolet::vec::Vec4;
 pub struct BlinnPhong {
     camera: Box<dyn Camera>,
     lights: Vec<LightSource>,
-    lights_buffer: Option<GLuint>,
+    lights_buffer: Option<
+        InterfaceBlock<
+            crate::interface_blocks::Uniform,
+            crate::interface_blocks::Std140,
+            LightSource,
+            crate::interface_blocks::Attached,
+        >,
+    >,
     scene_objects: HashMap<String, Rc<SceneObject>>,
     meshes: HashMap<String, Mesh<Attached>>,
     stdout: std::io::StdoutLock<'static>,
@@ -91,41 +100,25 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         // Not sure this matters at all lmao, might be triggering extra allocations per light add
         // self.data.lights.shrink_to_fit();
 
-        // Get location of the lights on the GPU, and length of the array CPU side
-        let block_id = self.get_uniform_block_index("Lights")?;
-        let num_lights: GLuint = self.data.lights.len() as u32;
-        println!("Lights Block Index: {}", block_id);
-
-        // Rebind the lights (This is the layout in the shader code)
-        let binding_point = 1 as GLuint;
-
         // Initialize a Uniform Buffer for the lights, if we haven't alreaady
-        let buffer_id = match self.data.lights_buffer {
-            Some(id) => id,
+        let block = match self.data.lights_buffer.take() {
+            Some(block) => block,
             None => {
-                let mut id = 0 as GLuint;
-                unsafe {
-                    gl::GenBuffers(1, &mut id);
-                }
-                self.data.lights_buffer = Some(id);
-                id
+                let block = crate::interface_blocks::UniformBufferBlock::new_std140(
+                    "Lights",
+                    self.data.lights.clone(),
+                )?;
+
+                self.attach_interface_block(block)?
             }
         };
-
-        // Buffer the data
-        unsafe {
-            gl::UniformBlockBinding(self.id, block_id, binding_point);
-            let ptr = self.data.lights.as_ptr() as *const std::ffi::c_void;
-            // Could be error site
-            let size = (num_lights * std::mem::size_of::<LightSource>() as u32) as GLsizeiptr;
-            gl::BindBuffer(gl::UNIFORM_BUFFER, buffer_id);
-            gl::BufferData(gl::UNIFORM_BUFFER, size, ptr, gl::DYNAMIC_DRAW);
-        }
-        // Bind the buffer and the block to the same place
-        unsafe {
-            gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer_id);
-        }
+        block.update(self.data.lights.clone());
+        self.data.lights_buffer = Some(block);
+        // block.upgrade().
+        // Update the number of lights
+        let num_lights: GLuint = self.data.lights.len() as u32;
         self.update_uniform("num_lights", &num_lights)?;
+
         Ok(())
     }
 

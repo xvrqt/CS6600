@@ -96,10 +96,14 @@ impl<'a, Any> GLProgram<'a, Any> {
             Value,
             crate::interface_blocks::Unattached<Value>,
         >,
-    ) -> Result<Weak<dyn InterfaceBuffer>>
-    where
-        Value: UniformValue + 'static,
-    {
+    ) -> Result<
+        InterfaceBlock<
+            crate::interface_blocks::Uniform,
+            crate::interface_blocks::Std140,
+            Value,
+            crate::interface_blocks::Attached,
+        >,
+    > {
         unsafe {
             gl::UseProgram(self.id);
         }
@@ -107,9 +111,7 @@ impl<'a, Any> GLProgram<'a, Any> {
         let key = block.key();
         // hardcoded :[
         let value = block.attach(self.id, 1)?;
-        let weak = Rc::downgrade(&value);
-        self.interface_blocks.insert(key, value);
-        Ok(weak)
+        Ok(value)
     }
 
     // Creates a new uniform, initializes it in the GLProgram and adds it to the HashMap
@@ -130,7 +132,14 @@ impl<'a, Any> GLProgram<'a, Any> {
     pub fn create_interface_block<S, Value>(
         &mut self,
         value: Vec<Value>,
-    ) -> Result<Weak<dyn InterfaceBuffer>>
+    ) -> Result<
+        InterfaceBlock<
+            crate::interface_blocks::Uniform,
+            crate::interface_blocks::Std140,
+            Value,
+            crate::interface_blocks::Attached,
+        >,
+    >
     where
         S: AsRef<str>,
         Value: UniformValue + 'static,
