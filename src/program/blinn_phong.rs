@@ -88,7 +88,8 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         let light = LightSource::new(color, position);
         self.data.lights.push(light);
         // Since we're buffering to the GPU we don't want extra mememory at the end
-        self.data.lights.shrink_to_fit();
+        // Not sure this matters at all lmao, might be triggering extra allocations per light add
+        // self.data.lights.shrink_to_fit();
 
         // Get location of the lights on the GPU, and length of the array CPU side
         let block_id = self.get_uniform_block_index("Lights")?;

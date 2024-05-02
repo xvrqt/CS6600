@@ -10,10 +10,12 @@ pub mod mesh;
 pub mod scene_object;
 pub mod vao;
 
+use crate::interface_blocks::UniformBufferBlock;
+pub use crate::interface_blocks::{InterfaceBlock, InterfaceBuffer};
+use crate::shader::ShaderPipeline;
 pub use crate::uniform::UpdateUniform;
 use crate::uniform::{Uniform, UniformValue};
 use crate::window;
-use crate::{shader::ShaderPipeline, types::UniformHandle};
 use blinn_phong::BlinnPhong;
 pub use camera::{Camera, Projection};
 pub use error::ProgramError;
@@ -49,7 +51,7 @@ pub struct GLProgram<'a, Type> {
     // Different types data based on the Shader type
     // Uniform locations, and their values
     uniforms: HashMap<Rc<str>, Rc<dyn UpdateUniform>>,
-    interface_blocks: HashMap<Rc<str>, Rc<dyn UpdateUniform>>,
+    interface_blocks: HashMap<Rc<str>, Rc<dyn InterfaceBuffer>>,
     data: Type,
 }
 
@@ -86,6 +88,30 @@ impl<'a, Any> GLProgram<'a, Any> {
         Ok(weak)
     }
 
+    pub fn attach_interface_block<'b, Value>(
+        &mut self,
+        block: InterfaceBlock<
+            crate::interface_blocks::Uniform,
+            crate::interface_blocks::Std140,
+            Value,
+            crate::interface_blocks::Unattached<Value>,
+        >,
+    ) -> Result<Weak<dyn InterfaceBuffer>>
+    where
+        Value: UniformValue + 'static,
+    {
+        unsafe {
+            gl::UseProgram(self.id);
+        }
+
+        let key = block.key();
+        // hardcoded :[
+        let value = block.attach(self.id, 1)?;
+        let weak = Rc::downgrade(&value);
+        self.interface_blocks.insert(key, value);
+        Ok(weak)
+    }
+
     // Creates a new uniform, initializes it in the GLProgram and adds it to the HashMap
     pub fn create_uniform<'b, S, Value>(
         &mut self,
@@ -98,6 +124,19 @@ impl<'a, Any> GLProgram<'a, Any> {
     {
         let uniform = Uniform::new(name, value)?;
         self.attach_uniform(uniform)
+    }
+
+    // Creates a new Interface Block, initializes it in the GLProgram and adds it to the HashMap
+    pub fn create_interface_block<S, Value>(
+        &mut self,
+        value: Vec<Value>,
+    ) -> Result<Weak<dyn InterfaceBuffer>>
+    where
+        S: AsRef<str>,
+        Value: UniformValue + 'static,
+    {
+        let interface_block = UniformBufferBlock::new_std140("lights", value)?;
+        self.attach_interface_block(interface_block)
     }
 
     // Returns a weak reference to an existing Uniform in the program (which the caller can then

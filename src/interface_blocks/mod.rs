@@ -118,44 +118,39 @@ impl<T, Value> InterfaceBlock<Uniform, T, Value, Unattached<Value>> {
 
         Ok(Rc::from(attached))
     }
-
-    // Looks up the uniform index using `name` then initializes that location with the data
-    // contained in `value` and finally returns the attached version of the struct
-    // pub(crate) fn attach(self, program_id: GLuint) -> Result<Rc<dyn UpdateUniform>> {
-    //     unsafe {
-    //         gl::UseProgram(program_id);
-    //     }
-    //     let name = self.name.clone();
-    //
-    //     // Perform the lookup ;::; -1 is OpenGL's operation failed error code
-    //     let location: GLint;
-    //     unsafe {
-    //         location = gl::GetUniformLocation(program_id, name.into_raw());
-    //     }
-    //     if location == -1 {
-    //         Err(UniformError::CouldNotFindUniformIndex(
-    //             self.name.to_string_lossy().to_string(),
-    //         ))
-    //     } else {
-    //         // Buffer the initial data to the uniform
-    //         self.value.initialize(location);
-    //         let attached = UniformHandle {
-    //             location,
-    //             value: std::marker::PhantomData::<Value>,
-    //         };
-    //         let attached: Rc<dyn UpdateUniform> = Rc::from(attached);
-    //         Ok(attached)
-    //     }
-    // }
-    //
-    // // Convenience function that transforms the name from CString to Rc<str> to use as a key in a
-    // // GLProgram's uniform HashMap
-    // pub(crate) fn key(&self) -> Rc<str> {
-    //     let name = self.name.to_string_lossy();
-    //     let key: Rc<str> = Rc::from(name);
-    //     key
-    // }
+    pub(crate) fn key(&self) -> Rc<str> {
+        let name = self.name.to_string_lossy();
+        let key: Rc<str> = Rc::from(name);
+        key
+    }
 }
+
+impl<T, Value> InterfaceBlock<Uniform, T, Value, Attached> {
+    pub(crate) fn update(&self, value: Vec<Value>) -> () {
+        // Buffer the data
+        let ptr = value.as_ptr() as *const std::ffi::c_void;
+        let size = (value.len() as u32 * std::mem::size_of::<Value>() as u32) as GLsizeiptr;
+        unsafe {
+            gl::UniformBlockBinding(
+                self.data.buffer_id,
+                self.data.block_index,
+                self.data.binding_point,
+            );
+            // Could be error site
+            gl::BindBuffer(gl::UNIFORM_BUFFER, self.data.buffer_id);
+            gl::BufferData(gl::UNIFORM_BUFFER, size, ptr, gl::DYNAMIC_DRAW);
+            gl::BindBufferBase(
+                gl::UNIFORM_BUFFER,
+                self.data.binding_point,
+                self.data.buffer_id,
+            );
+        }
+    }
+}
+
+// UGH KILL ME
+pub trait InterfaceBuffer {}
+impl<Value> InterfaceBuffer for InterfaceBlock<Uniform, Std140, Value, Attached> {}
 
 // Similar to get_uniform_location but for block indices
 fn get_interface_block_index(program_id: GLuint, name: CString) -> Result<GLuint> {
