@@ -2,8 +2,9 @@ use std::process::Termination;
 
 // Library Error Types
 pub use crate::{
-    program::mesh::MeshError, program::scene_object::SceneObjectError, program::vao::VAOError,
-    program::ProgramError, shader::ShaderError, uniform::UniformError, window::WindowError,
+    interface_blocks::InterfaceBlockError, program::mesh::MeshError,
+    program::scene_object::SceneObjectError, program::vao::VAOError, program::ProgramError,
+    shader::ShaderError, uniform::UniformError, window::WindowError,
 };
 // Make error logs, and shader source errors pretty and helpful
 use bat::PrettyPrinter;
@@ -15,6 +16,7 @@ pub enum GLError {
     Shader(ShaderError),
     Window(WindowError),
     Uniform(UniformError),
+    InterfaceBlock(InterfaceBlockError),
     VAO(VAOError),
     Mesh(MeshError),
     SceneObject(SceneObjectError),
@@ -75,6 +77,13 @@ impl std::fmt::Display for GLError {
             }
             GLError::Uniform(error) => {
                 write!(f, "GL Uniform Assignment Error:\n{}", error.to_string())
+            }
+            GLError::InterfaceBlock(error) => {
+                write!(
+                    f,
+                    "GL InterfaceBlock Assignment Error:\n{}",
+                    error.to_string()
+                )
             }
             GLError::VAO(error) => {
                 write!(f, "GL Attribute Creation Error:\n{}", error.to_string())

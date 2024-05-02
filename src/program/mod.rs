@@ -10,9 +10,10 @@ pub mod mesh;
 pub mod scene_object;
 pub mod vao;
 
-use crate::shader::ShaderPipeline;
-use crate::uniform::Uniform;
+pub use crate::uniform::UpdateUniform;
+use crate::uniform::{Uniform, UniformValue};
 use crate::window;
+use crate::{shader::ShaderPipeline, types::UniformHandle};
 use blinn_phong::BlinnPhong;
 pub use camera::{Camera, Projection};
 pub use error::ProgramError;
@@ -29,7 +30,9 @@ type Result<T> = std::result::Result<T, ProgramError>;
 use gl::types::*;
 
 // Used by OpenGL functions to look up locations of uniforms and attributes in shaders
+use std::collections::HashMap;
 use std::ffi::CString;
+use std::rc::{Rc, Weak};
 
 // Semantic OpenGL Program
 // #[derive(Debug)]
@@ -44,13 +47,16 @@ pub struct GLProgram<'a, Type> {
     // OpenGL Shaders, e.g. vertex, fragment, et al.
     shaders: ShaderPipeline<'a>,
     // Different types data based on the Shader type
+    // Uniform locations, and their values
+    uniforms: HashMap<Rc<str>, Rc<dyn UpdateUniform>>,
+    interface_blocks: HashMap<Rc<str>, Rc<dyn UpdateUniform>>,
     data: Type,
 }
 
 // All GLProgram Types have to implement a standard draw() call which draws the program contents to
 // its context/window.
 pub trait GLDraw {
-    fn draw(&self) -> Result<()>;
+    fn draw(&mut self) -> Result<()>;
 }
 
 // Dummy types that represent different GLPrograms with different abilities built-in
@@ -59,41 +65,68 @@ pub struct CustomShader;
 
 // Functions commong to all GLProgram types
 impl<'a, Any> GLProgram<'a, Any> {
-    // Sets a uniform variable at the location
-    pub fn set_uniform<S, Type>(&self, name: S, value: Type) -> Result<()>
+    //////////////
+    // UNIFORMS //
+    //////////////
+    pub fn attach_uniform<'b, Value>(
+        &mut self,
+        uniform: Uniform<Value>,
+    ) -> Result<Weak<dyn UpdateUniform>>
     where
-        S: AsRef<str>,
-        Type: Uniform,
+        Value: UniformValue + 'static,
     {
         unsafe {
             gl::UseProgram(self.id);
         }
-        let location = self.get_uniform_location(name)?;
-        value
-            .set(location)
-            .map_err(|e| ProgramError::SettingUniformValue(e.to_string()))?;
 
-        Ok(())
+        let key = uniform.key();
+        let value = uniform.attach(self.id)?;
+        let weak = Rc::downgrade(&value);
+        self.uniforms.insert(key, value);
+        Ok(weak)
     }
 
-    // Convenience function to look up uniform locatoin
-    fn get_uniform_location<S>(&self, name: S) -> Result<GLint>
+    // Creates a new uniform, initializes it in the GLProgram and adds it to the HashMap
+    pub fn create_uniform<'b, S, Value>(
+        &mut self,
+        name: S,
+        value: &'b Value,
+    ) -> Result<Weak<dyn UpdateUniform>>
+    where
+        S: AsRef<str>,
+        Value: UniformValue + 'static,
+    {
+        let uniform = Uniform::new(name, value)?;
+        self.attach_uniform(uniform)
+    }
+
+    // Returns a weak reference to an existing Uniform in the program (which the caller can then
+    // call .update() on to update the value in the program).
+    pub fn get_uniform<S>(&self, name: &S) -> Option<Weak<dyn UpdateUniform>>
     where
         S: AsRef<str>,
     {
-        let c_name = CString::new(name.as_ref()).map_err(|_| {
-            ProgramError::SettingUniformValue(
-                "Could not create CString from the uniform's location name.".to_string(),
-            )
-        })?;
-        let location;
+        self.uniforms
+            .get(name.as_ref())
+            .map(|uniform| Rc::downgrade(uniform))
+    }
+
+    // Lazy way to combine getting and updating and existing uniform
+    pub fn update_uniform<S, Value>(&self, name: S, value: &Value) -> Result<()>
+    where
+        S: AsRef<str>,
+        Value: UniformValue,
+    {
         unsafe {
-            location = gl::GetUniformLocation(self.id, c_name.into_raw());
+            gl::UseProgram(self.id);
         }
-        match location {
-            -1 => Err(ProgramError::GetUniformLocation(name.as_ref().into())),
-            _ => Ok(location),
-        }
+
+        self.get_uniform(&name)
+            .and_then(|uniform| uniform.upgrade())
+            .and_then(|uniform| Some(uniform.update(value)))
+            .ok_or(ProgramError::UniformNotAttachedToProgram(
+                name.as_ref().to_string(),
+            ))
     }
 
     // Similar to get_uniform_location but for block indices

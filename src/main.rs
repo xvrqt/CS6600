@@ -1,5 +1,5 @@
 // My Libs
-use cs6600::{GLError, GLProgram, GLStatus, LightColor, Mesh, Position};
+use cs6600::{GLError, GLProgram, LightColor, Mesh, Position};
 
 use rand::rngs::SmallRng;
 use rand::{RngCore, SeedableRng};
@@ -8,7 +8,7 @@ use ultraviolet::mat::Mat4;
 use ultraviolet::vec::Vec3;
 
 fn main() -> std::result::Result<(), GLError> {
-    // let mut rng = SmallRng::from_entropy();
+    let mut rng = SmallRng::from_entropy();
 
     let mut program = GLProgram::blinn()?;
 
@@ -23,23 +23,23 @@ fn main() -> std::result::Result<(), GLError> {
     // program.create_object("moved_teapot", "teapot", moved_teapot);
 
     // 10,000 TEAPOTS
-    // for i in 0..9998 {
-    //     let x = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
-    //     let y = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
-    //     let z = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
-    //     let translate = Mat4::from_translation(Vec3::new(x, y, z));
-    //     let scale = f32::powf(
-    //         0.5,
-    //         ((rng.next_u32() as f32 / std::u32::MAX as f32) * 5.0) - 0.5,
-    //     );
-    //     let scale = Mat4::from_scale(scale);
-    //     let r = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
-    //     let y = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
-    //     let p = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
-    //     let rotate = Mat4::from_euler_angles(r, p, y);
-    //     let transformed_teapot = translate * scale * rotate;
-    //     program.create_object(i.to_string().as_str(), "teapot", transformed_teapot);
-    // }
+    for i in 0..9998 {
+        let x = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
+        let y = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
+        let z = ((rng.next_u32() as f32 / std::u32::MAX as f32) * 1000.0) - 500.0;
+        let translate = Mat4::from_translation(Vec3::new(x, y, z));
+        let scale = f32::powf(
+            0.5,
+            ((rng.next_u32() as f32 / std::u32::MAX as f32) * 5.0) - 0.5,
+        );
+        let scale = Mat4::from_scale(scale);
+        let r = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
+        let y = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
+        let p = (rng.next_u32() as f32 / std::u32::MAX as f32) * 1.0 * std::f32::consts::PI;
+        let rotate = Mat4::from_euler_angles(r, p, y);
+        let transformed_teapot = translate * scale * rotate;
+        program.create_object(i.to_string().as_str(), "teapot", transformed_teapot);
+    }
     // let monkey = Mesh::parse("./objs/monkey.obj")?;
     // program.new_object("monkey", monkey)?;
 
@@ -48,20 +48,19 @@ fn main() -> std::result::Result<(), GLError> {
     let green_light = LightColor::new(0.0, 1.0, 0.0, 1.0);
     let blue_light = LightColor::new(0.0, 0.0, 1.0, 1.0);
 
-    let location_1 = Position::new(-5.0, 0.0, 0.0);
-    let location_2 = Position::new(0.0, -5.0, 0.0);
-    let location_3 = Position::new(5.0, 0.0, 0.0);
-
-    let location_4 = Position::new(-500.0, 0.0, 0.0);
-    let location_5 = Position::new(0.0, 500.0, 0.0);
+    let location_1 = Position::new(0.0, 0.0, -500.0);
+    let location_2 = Position::new(0.0, 0.0, 500.0);
+    let location_3 = Position::new(0.0, -500.0, 0.0);
+    let location_4 = Position::new(0.0, 500.0, 0.0);
+    let location_5 = Position::new(-500.0, 0.0, 0.0);
     let location_6 = Position::new(500.0, 0.0, 0.0);
 
-    program.add_light(&location_1, &red_light)?;
-    program.add_light(&location_2, &green_light)?;
-    program.add_light(&location_3, &blue_light)?;
-    program.add_light(&location_4, &red_light)?;
-    program.add_light(&location_5, &green_light)?;
-    program.add_light(&location_6, &blue_light)?;
+    program.add_light(&location_1, &blue_light)?;
+    program.add_light(&location_2, &blue_light)?;
+    program.add_light(&location_3, &green_light)?;
+    program.add_light(&location_4, &green_light)?;
+    program.add_light(&location_5, &red_light)?;
+    program.add_light(&location_6, &red_light)?;
 
     program.ambient_light(&ambient_light)?;
 

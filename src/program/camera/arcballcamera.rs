@@ -18,20 +18,29 @@ pub struct ArcBallCamera {
     radius: f32,
     // The rotation matrix, representing the current rotation, and our x,y,z unit axes.
     rotation: Mat3,
-    // Cached View Matrix
+    // The camera's position in World-Space
+    position: Vec3,
+    // Scene View Matrix (world transform into this camera's POV)
     view_matrix: Mat4,
-    // Projection Enum, contains the matrix
+    // Projection Enum, contains the Projection Matrix
     projection: Projection,
+    // Cached View-Projection Matrix; caller sets to "None" when they take it so they know it
+    // hasn't changed and can skip sending it to the GPU again
+    pub(crate) view_projection_matrix: Option<Mat4>,
 }
 
 impl Default for ArcBallCamera {
     fn default() -> Self {
+        let projection = Projection::default_perspective();
+        let projection_matrix = projection.matrix();
         ArcBallCamera {
             target: ORIGIN,
             radius: 25.0,
             rotation: Mat3::identity(),
+            position: Vec3::new(0.0, 0.0, 0.0),
             view_matrix: Mat4::identity(),
-            projection: Projection::default_perspective(),
+            projection,
+            view_projection_matrix: Some(projection_matrix),
         }
     }
 }
@@ -45,7 +54,16 @@ impl Camera for ArcBallCamera {
         self.projection.matrix()
     }
 
+    fn view_projection_matrix(&mut self) -> Option<Mat4> {
+        self.view_projection_matrix.take()
+    }
+
+    fn position(&self) -> Vec3 {
+        self.position
+    }
+
     fn update(&mut self, events: &mut VecDeque<CameraEvent>) -> () {
+        let update_required = events.len() > 0;
         while let Some(event) = events.pop_front() {
             match event {
                 CameraEvent::Movement(direction) => self.update_position(&direction),
@@ -59,7 +77,9 @@ impl Camera for ArcBallCamera {
             };
         }
         // Update the View Matrix
-        self.compute_view_matrix();
+        if update_required {
+            self.compute_view_matrix();
+        }
     }
 }
 
@@ -145,9 +165,19 @@ impl ArcBallCamera {
 
     // Recomputes the View Matrix based on the updated: target, rotation, and radius
     fn compute_view_matrix(&mut self) -> () {
-        let trans = self.inverse_translation_matrix();
-        let rot = self.inverse_rotation_matrix();
-        self.view_matrix = rot * trans;
+        // Calculate the camera World-Space transform
+        let rotation = self.rotation_matrix();
+        let translation = self.translation_matrix();
+        let camera_transform = translation * rotation;
+        // Update the camera's position while we're at it
+        self.position = camera_transform.cols[3].truncated();
+
+        // Inverse is the view matrix
+        self.view_matrix = camera_transform.inversed();
+
+        // Update the cache
+        let m = self.projection.matrix() * self.view_matrix;
+        self.view_projection_matrix = Some(m);
     }
 
     // Inverse of a rotation matrix is its transpose. This takes 3 unit vectors of the camera and
@@ -166,16 +196,20 @@ impl ArcBallCamera {
         .transposed()
     }
 
+    fn rotation_matrix(&self) -> Mat4 {
+        let x = self.axis(Axis::X);
+        let y = self.axis(Axis::Y);
+        let z = self.axis(Axis::Z);
+        Mat4::new(
+            Vec4::new(x.x, x.y, x.z, 0.0),
+            Vec4::new(y.x, y.y, y.z, 0.0),
+            Vec4::new(z.x, z.y, z.z, 0.0),
+            Vec4::new(0.0, 0.0, 0.0, 1.0),
+        )
+    }
+
     // Inverse of the matrix that translates the camera into it's position in world-space
     fn inverse_translation_matrix(&self) -> Mat4 {
-        /* Inverse Translation Matrix
-         * +-        -+
-         * | 1 0 0 -x |
-         * | 0 1 0 -y |
-         * | 0 0 1 -z |
-         * | 0 0 0  1 |
-         * +-        -+
-         */
         let position = (self.axis(Axis::Z) * self.radius) + self.target;
         let pos_x = position.x;
         let pos_y = position.y;
@@ -185,6 +219,19 @@ impl ArcBallCamera {
             Vec4::new(0.0, 1.0, 0.0, 0.0),
             Vec4::new(0.0, 0.0, 1.0, 0.0),
             Vec4::new(-pos_x, -pos_y, -pos_z, 1.0),
+        )
+    }
+
+    fn translation_matrix(&self) -> Mat4 {
+        let position = (self.axis(Axis::Z) * self.radius) + self.target;
+        let pos_x = position.x;
+        let pos_y = position.y;
+        let pos_z = position.z;
+        Mat4::new(
+            Vec4::new(1.0, 0.0, 0.0, 0.0),
+            Vec4::new(0.0, 1.0, 0.0, 0.0),
+            Vec4::new(0.0, 0.0, 1.0, 0.0),
+            Vec4::new(pos_x, pos_y, pos_z, 1.0),
         )
     }
 }

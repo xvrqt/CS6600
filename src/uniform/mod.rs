@@ -1,25 +1,26 @@
 // Custom Error Type
 pub mod error;
 pub use error::UniformError;
-use std::ffi::CString;
 type Result<T> = std::result::Result<T, UniformError>;
 
 // OpenGL Types
 use gl::types::*;
 // Used for defining arrays of floats, vectors, and matrices
+use std::ffi::CString;
+use std::rc::Rc;
 use std::vec::Vec;
 
 // Used for 'MagicUniform' values to easily set and test for
 use bitflags::bitflags;
+
 // Linear Algebra Crate -> Defining the Uniform and From<> traits on its types
-// TODO: These intermediate types should be abandoned for ultraviolet's types
-use ultraviolet;
+use ultraviolet::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
 // Flags that are used to set 'magic' uniforms such as 'time' or 'mouse position'
 // During the render loop, the program will check which flags are set
 // and update the corresponding uniform values appropriately
 bitflags! {
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct MagicUniform: u8 {
         const NONE = 0;
         const TIME = 1;
@@ -27,586 +28,359 @@ bitflags! {
     }
 }
 
-pub struct GayUniform {}
-impl GayUniform {
-    // Sets a uniform variable at the location
-    pub fn set_uniform<S, Type>(program_id: GLuint, name: S, value: &Type) -> Result<()>
+// Implemented by types that can be passed to a shader using OpenGL's `glUniform*` functions
+// Essentially dynamic dispatch to the corrent OpenGL function
+pub trait UniformValue {
+    fn initialize(&self, location: GLint) -> ();
+}
+// Implemented by attached Uniform structs that call ".set()" on their inner values, passing in the
+// uniform's location
+pub trait UpdateUniform {
+    // Updates the uniform at `location` to the value of self
+    fn update(&self, value: &dyn UniformValue) -> ();
+}
+
+pub struct Uniform<'a, Value>
+where
+    Value: UniformValue,
+{
+    name: CString,
+    value: &'a Value,
+}
+
+impl<'a, Value> Uniform<'a, Value>
+where
+    Value: UniformValue + 'static,
+{
+    pub fn new<S>(name: S, value: &'a Value) -> Result<Self>
     where
         S: AsRef<str>,
-        Type: Uniform,
     {
+        // Attempt CString conversion
+        let name = CString::new(name.as_ref()).map_err(|_| {
+            UniformError::Other(crate::GLUtilityError::FailedToConvertToCString(
+                name.as_ref().to_string(),
+            ))
+        })?;
+
+        Ok(Self { name, value })
+    }
+
+    // Looks up the uniform index using `name` then initializes that location with the data
+    // contained in `value` and finally returns the attached version of the struct
+    pub(crate) fn attach(self, program_id: GLuint) -> Result<Rc<dyn UpdateUniform>> {
         unsafe {
             gl::UseProgram(program_id);
         }
-        let location = Self::get_uniform_location(program_id, name)?;
-        value
-            .set(location)
-            .map_err(|e| UniformError::SettingUniformValue(e.to_string()))?;
+        let name = self.name.clone();
 
-        Ok(())
-    }
-
-    // Convenience function to look up uniform locatoin
-    fn get_uniform_location<S>(program_id: GLuint, name: S) -> Result<GLint>
-    where
-        S: AsRef<str>,
-    {
-        let c_name = CString::new(name.as_ref()).map_err(|_| {
-            UniformError::SettingUniformValue(
-                "Could not create CString from the uniform's location name.".to_string(),
-            )
-        })?;
-        let location;
+        // Perform the lookup ;::; -1 is OpenGL's operation failed error code
+        let location: GLint;
         unsafe {
-            location = gl::GetUniformLocation(program_id, c_name.into_raw());
+            location = gl::GetUniformLocation(program_id, name.into_raw());
         }
-        match location {
-            -1 => Err(UniformError::GetUniformLocation(name.as_ref().into())),
-            _ => Ok(location),
+        if location == -1 {
+            Err(UniformError::CouldNotFindUniformIndex(
+                self.name.to_string_lossy().to_string(),
+            ))
+        } else {
+            // Buffer the initial data to the uniform
+            self.value.initialize(location);
+            let attached = UniformHandle {
+                location,
+                value: std::marker::PhantomData::<Value>,
+            };
+            let attached: Rc<dyn UpdateUniform> = Rc::from(attached);
+            Ok(attached)
         }
     }
 
-    // Similar to get_uniform_location but for block indices
-    fn get_uniform_block_index<S>(program_id: GLuint, name: S) -> Result<GLuint>
-    where
-        S: AsRef<str>,
-    {
-        let c_name = CString::new(name.as_ref()).map_err(|_| {
-            UniformError::SettingUniformValue(
-                "Could not create CString from the uniform's location name.".to_string(),
-            )
-        })?;
-        let location;
-        unsafe {
-            location = gl::GetUniformBlockIndex(program_id, c_name.into_raw());
-        }
-        match location {
-            gl::INVALID_INDEX => Err(UniformError::GetUniformLocation(name.as_ref().into())),
-            _ => Ok(location),
-        }
+    // Convenience function that transforms the name from CString to Rc<str> to use as a key in a
+    // GLProgram's uniform HashMap
+    pub(crate) fn key(&self) -> Rc<str> {
+        let name = self.name.to_string_lossy();
+        let key: Rc<str> = Rc::from(name);
+        key
     }
 }
 
-// Uniform Types
-pub trait Uniform {
-    fn set(&self, location: GLint) -> Result<()>;
+// When a uniform value is attached to a GLProgram, it is transformed into this. It loses its
+// `name` which becomes its key in the GLProgram's hashmap of Uniform values. It gains a definite
+// location within the program.
+// I really wish there was a good way to make this Uniform<Attached>
+pub struct UniformHandle<Value>
+where
+    Value: UniformValue,
+{
+    // Which GLProgram Uniform Index this is bound to
+    location: GLint,
+    // The associated uniform type
+    value: std::marker::PhantomData<Value>,
 }
 
-impl Uniform for ultraviolet::mat::Mat4 {
-    fn set(&self, location: GLint) -> Result<()> {
+// The GLProgram's map is abstracted over the dynamic type that implements this trait
+impl<Value> UpdateUniform for UniformHandle<Value>
+where
+    Value: UniformValue,
+{
+    // Simple wrapper around `.initialize()`
+    fn update(&self, new_value: &dyn UniformValue) -> () {
+        new_value.initialize(self.location)
+    }
+}
+
+///////////////////////////////////////////////////////
+// Trait UniformValue -> OpenGL glUniform*() Mapping //
+///////////////////////////////////////////////////////
+
+//////////////
+// Matrices //
+//////////////
+impl UniformValue for Mat4 {
+    fn initialize(&self, location: GLint) -> () {
         let ptr = self.cols.as_ptr() as *const GLfloat;
         unsafe {
             gl::UniformMatrix4fv(location, 1, gl::FALSE, ptr);
         }
-        Ok(())
     }
 }
 
-impl Uniform for Vec<ultraviolet::mat::Mat4> {
-    fn set(&self, location: GLint) -> Result<()> {
+impl UniformValue for Vec<Mat4> {
+    fn initialize(&self, location: GLint) -> () {
         let ptr = self.as_ptr() as *const GLfloat;
         let length = self.len() as GLint;
         unsafe {
             gl::UniformMatrix4fv(location, length, gl::FALSE, ptr);
         }
-        Ok(())
     }
 }
 
-impl Uniform for ultraviolet::mat::Mat3 {
-    fn set(&self, location: GLint) -> Result<()> {
+impl UniformValue for [Mat4] {
+    fn initialize(&self, location: GLint) -> () {
+        let ptr = self.as_ptr() as *const GLfloat;
+        let length = self.len() as GLint;
+        unsafe {
+            gl::UniformMatrix4fv(location, length, gl::FALSE, ptr);
+        }
+    }
+}
+
+impl UniformValue for Mat3 {
+    fn initialize(&self, location: GLint) -> () {
         let ptr = self.cols.as_ptr() as *const GLfloat;
         unsafe {
             gl::UniformMatrix3fv(location, 1, gl::FALSE, ptr);
         }
-        Ok(())
     }
 }
 
-impl Uniform for ultraviolet::vec::Vec4 {
-    fn set(&self, location: GLint) -> Result<()> {
+impl UniformValue for Vec<Mat3> {
+    fn initialize(&self, location: GLint) -> () {
+        let ptr = self.as_ptr() as *const GLfloat;
+        let length = self.len() as GLint;
+        unsafe {
+            gl::UniformMatrix3fv(location, length, gl::FALSE, ptr);
+        }
+    }
+}
+
+impl UniformValue for [Mat3] {
+    fn initialize(&self, location: GLint) -> () {
+        let ptr = self.as_ptr() as *const GLfloat;
+        let length = self.len() as GLint;
+        unsafe {
+            gl::UniformMatrix3fv(location, length, gl::FALSE, ptr);
+        }
+    }
+}
+
+/////////////
+// VECTORS //
+/////////////
+impl UniformValue for Vec4 {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
             gl::Uniform4f(location, self.x, self.y, self.z, self.w);
         }
-        Ok(())
     }
 }
 
-// Values
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL1F(pub GLfloat);
-impl Uniform for GL1F {
-    fn set(&self, location: GLint) -> Result<()> {
+impl UniformValue for Vec<Vec4> {
+    fn initialize(&self, location: GLint) -> () {
+        let data = self.as_ptr() as *const GLfloat;
+        let count = self.len() as GLint;
         unsafe {
-            gl::Uniform1f(location, self.0);
+            gl::Uniform4fv(location, count, data);
         }
-        Ok(())
-    }
-}
-impl From<f32> for GL1F {
-    fn from(value: f32) -> Self {
-        GL1F(value)
     }
 }
 
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL2F(pub GLfloat, pub GLfloat);
-impl Uniform for GL2F {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform2f(location, self.0, self.1);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL3F(pub GLfloat, pub GLfloat, pub GLfloat);
-impl Uniform for GL3F {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform3f(location, self.0, self.1, self.2);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL4F(pub GLfloat, pub GLfloat, pub GLfloat, pub GLfloat);
-impl Uniform for GL4F {
-    fn set(&self, location: GLint) -> Result<()> {
+impl UniformValue for (f32, f32, f32, f32) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
             gl::Uniform4f(location, self.0, self.1, self.2, self.3);
         }
-        Ok(())
     }
 }
 
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL1I(pub GLint);
-impl Uniform for GL1I {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform1i(location, self.0);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL2I(pub GLint, pub GLint);
-impl Uniform for GL2I {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform2i(location, self.0, self.1);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL3I(pub GLint, pub GLint, pub GLint);
-impl Uniform for GL3I {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform3i(location, self.0, self.1, self.2);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL4I(pub GLint, pub GLint, pub GLint, pub GLint);
-impl Uniform for GL4I {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform4i(location, self.0, self.1, self.2, self.3);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL1U(pub GLuint);
-impl Uniform for GL1U {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform1ui(location, self.0);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL2U(pub GLuint, pub GLuint);
-impl Uniform for GL2U {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform2ui(location, self.0, self.1);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL3U(pub GLuint, pub GLuint, pub GLuint);
-impl Uniform for GL3U {
-    fn set(&self, location: GLint) -> Result<()> {
-        unsafe {
-            gl::Uniform3ui(location, self.0, self.1, self.2);
-        }
-        Ok(())
-    }
-}
-
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
-pub struct GL4U(pub GLuint, pub GLuint, pub GLuint, pub GLuint);
-impl Uniform for GL4U {
-    fn set(&self, location: GLint) -> Result<()> {
+impl UniformValue for (GLuint, GLuint, GLuint, GLuint) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
             gl::Uniform4ui(location, self.0, self.1, self.2, self.3);
         }
-        Ok(())
     }
 }
 
-/////////////
-// Vectors //
-/////////////
-pub struct GL1FV(pub Vec<GL1F>);
-impl Uniform for GL1FV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLfloat;
+impl UniformValue for (GLint, GLint, GLint, GLint) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform1fv(location, count, ptr);
+            gl::Uniform4i(location, self.0, self.1, self.2, self.3);
         }
-        Ok(())
     }
 }
 
-pub struct GL2FV(pub Vec<GL2F>);
-impl Uniform for GL2FV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLfloat;
+impl UniformValue for Vec3 {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform2fv(location, count, ptr);
+            gl::Uniform3f(location, self.x, self.y, self.z);
         }
-        Ok(())
     }
 }
 
-pub struct GL3FV(pub Vec<GL3F>);
-impl Uniform for GL3FV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLfloat;
+impl UniformValue for Vec<Vec3> {
+    fn initialize(&self, location: GLint) -> () {
+        let data = self.as_ptr() as *const GLfloat;
+        let count = self.len() as GLint;
         unsafe {
-            gl::Uniform3fv(location, count, ptr);
+            gl::Uniform3fv(location, count, data);
         }
-        Ok(())
     }
 }
 
-pub struct GL4FV(pub Vec<GL4F>);
-impl Uniform for GL4FV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLfloat;
+impl UniformValue for (f32, f32, f32) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform4fv(location, count, ptr);
+            gl::Uniform3f(location, self.0, self.1, self.2);
         }
-        Ok(())
     }
 }
 
-pub struct GL1IV(pub Vec<i32>);
-impl Uniform for GL1IV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLint;
+impl UniformValue for (GLuint, GLuint, GLuint) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform1iv(location, count, ptr);
+            gl::Uniform3ui(location, self.0, self.1, self.2);
         }
-        Ok(())
     }
 }
 
-pub struct GL2IV(pub Vec<(i32, i32)>);
-impl Uniform for GL2IV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLint;
+impl UniformValue for (GLint, GLint, GLint) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform2iv(location, count, ptr);
+            gl::Uniform3i(location, self.0, self.1, self.2);
         }
-        Ok(())
-    }
-}
-pub struct GL3IV(pub Vec<(i32, i32, i32)>);
-impl Uniform for GL3IV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLint;
-        unsafe {
-            gl::Uniform3iv(location, count, ptr);
-        }
-        Ok(())
-    }
-}
-pub struct GL4IV(pub Vec<(i32, i32, i32, i32)>);
-impl Uniform for GL4IV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLint;
-        unsafe {
-            gl::Uniform4iv(location, count, ptr);
-        }
-        Ok(())
     }
 }
 
-pub struct GL1UV(pub Vec<u32>);
-impl Uniform for GL1UV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLuint;
+impl UniformValue for Vec2 {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform1uiv(location, count, ptr);
+            gl::Uniform2f(location, self.x, self.y);
         }
-        Ok(())
     }
 }
 
-pub struct GL2UV(pub Vec<(u32, u32)>);
-impl Uniform for GL2UV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLuint;
+impl UniformValue for Vec<Vec2> {
+    fn initialize(&self, location: GLint) -> () {
+        let data = self.as_ptr() as *const GLfloat;
+        let count = self.len() as GLint;
         unsafe {
-            gl::Uniform2uiv(location, count, ptr);
+            gl::Uniform2fv(location, count, data);
         }
-        Ok(())
     }
 }
-pub struct GL3UV(pub Vec<(u32, u32, u32)>);
-impl Uniform for GL3UV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLuint;
+
+impl UniformValue for (f32, f32) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform3uiv(location, count, ptr);
+            gl::Uniform2f(location, self.0, self.1);
         }
-        Ok(())
     }
 }
-pub struct GL4UV(pub Vec<(u32, u32, u32, u32)>);
-impl Uniform for GL4UV {
-    fn set(&self, location: GLint) -> Result<()> {
-        let count: GLsizei = self
-            .0
-            .len()
-            .try_into()
-            .map_err(|_| UniformError::VectorLength)?;
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLuint;
+
+impl UniformValue for (GLuint, GLuint) {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::Uniform4uiv(location, count, ptr);
+            gl::Uniform2ui(location, self.0, self.1);
         }
-        Ok(())
+    }
+}
+
+impl UniformValue for (GLint, GLint) {
+    fn initialize(&self, location: GLint) -> () {
+        unsafe {
+            gl::Uniform2i(location, self.0, self.1);
+        }
+    }
+}
+
+////////////
+// FLOATS //
+////////////
+
+impl UniformValue for f32 {
+    fn initialize(&self, location: GLint) -> () {
+        unsafe {
+            gl::Uniform1f(location, *self);
+        }
+    }
+}
+
+impl UniformValue for Vec<f32> {
+    fn initialize(&self, location: GLint) -> () {
+        let data = self.as_ptr() as *const GLfloat;
+        let count = self.len() as GLint;
+        unsafe {
+            gl::Uniform1fv(location, count, data);
+        }
     }
 }
 
 //////////////
-// Matrices //
+// INTEGERS //
 //////////////
 
-// 3x3 Matrix of Floats
-pub struct GL3FM(
-    pub  Vec<(
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-    )>,
-);
-impl Uniform for GL3FM {
-    fn set(&self, location: GLint) -> Result<()> {
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLfloat;
+impl UniformValue for GLuint {
+    fn initialize(&self, location: GLint) -> () {
         unsafe {
-            gl::UniformMatrix3fv(location, 1, gl::FALSE, ptr);
+            gl::Uniform1ui(location, *self);
         }
-        Ok(())
-    }
-}
-impl TryFrom<Vec<f32>> for GL3FM {
-    type Error = UniformError;
-    fn try_from(mut v: Vec<f32>) -> std::result::Result<Self, Self::Error> {
-        v.shrink_to_fit();
-        // Check for conformity
-        if v.len() % 9 != 0 {
-            return Err(UniformError::MatrixConversion((3, 3)));
-        }
-        let mut gl3fm: Vec<(
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-        )> = Vec::new();
-        while v.len() > 0 {
-            let d: Vec<f32> = v.drain(0..9).collect();
-            gl3fm.push((d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]));
-        }
-
-        Ok(GL3FM(gl3fm))
     }
 }
 
-// 4x4 Matrix of Floats
-// TODO: This should be abandoned for ultraviolet's types tbh
-pub struct GL4FM(
-    pub  Vec<(
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-        GLfloat,
-    )>,
-);
-impl Uniform for GL4FM {
-    fn set(&self, location: GLint) -> Result<()> {
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const GLfloat;
+impl UniformValue for Vec<GLuint> {
+    fn initialize(&self, location: GLint) -> () {
+        let data = self.as_ptr() as *const GLuint;
+        let count = self.len() as GLint;
         unsafe {
-            gl::UniformMatrix4fv(location, 1, gl::FALSE, ptr);
+            gl::Uniform1uiv(location, count, data);
         }
-        Ok(())
     }
 }
-impl TryFrom<Vec<f32>> for GL4FM {
-    type Error = UniformError;
-    fn try_from(mut v: Vec<f32>) -> std::result::Result<Self, Self::Error> {
-        v.shrink_to_fit();
-        // Check for conformity
-        if v.len() % 16 != 0 {
-            return Err(UniformError::MatrixConversion((4, 4)));
-        }
-        let mut gl4fm: Vec<(
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-            GLfloat,
-        )> = Vec::new();
-        while v.len() > 0 {
-            let d: Vec<f32> = v.drain(0..16).collect();
-            gl4fm.push((
-                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12],
-                d[13], d[14], d[15],
-            ));
-        }
 
-        Ok(GL4FM(gl4fm))
+impl UniformValue for GLint {
+    fn initialize(&self, location: GLint) -> () {
+        unsafe {
+            gl::Uniform1i(location, *self);
+        }
+    }
+}
+
+impl UniformValue for Vec<GLint> {
+    fn initialize(&self, location: GLint) -> () {
+        let data = self.as_ptr() as *const GLint;
+        let count = self.len() as GLint;
+        unsafe {
+            gl::Uniform1iv(location, count, data);
+        }
     }
 }

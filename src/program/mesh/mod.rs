@@ -66,7 +66,7 @@ impl DrawStyle {
 // if so, adds its `transform` matrix to a varying to buffered alongside the mesh vertice and
 // normal varyings.
 impl GLDraw for Mesh<Attached> {
-    fn draw(&self) -> super::Result<()> {
+    fn draw(&mut self) -> super::Result<()> {
         // Iterate over all the scene objects, checking if they're enabled, and collating their
         // transforms into a contiguous array to be buffered to the GPU
         let mut transforms = Vec::new();
@@ -89,12 +89,18 @@ impl GLDraw for Mesh<Attached> {
             }
         }
         // Buffer the transform data to the GPU
-        self.data
-            .vao
-            .update_attribute("object_mw_transforms", &transforms, true)?;
-        self.data
-            .vao
-            .update_attribute("object_mw_normal_transforms", &normal_transforms, true)?;
+        if transforms.len() > 1 {
+            self.data
+                .vao
+                .update_attribute("object_mw_transforms", &transforms, true)?;
+        }
+        if normal_transforms.len() > 1 {
+            self.data.vao.update_attribute(
+                "object_mw_normal_transforms",
+                &normal_transforms,
+                true,
+            )?;
+        }
 
         let vao = &self.data.vao;
         // This might be wrong at some point - i.e. if we start doing partial buffer updates

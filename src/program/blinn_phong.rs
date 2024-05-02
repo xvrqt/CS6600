@@ -18,6 +18,7 @@ use std::rc::{Rc, Weak};
 type Result<T> = std::result::Result<T, ProgramError>;
 
 use ultraviolet::mat::{Mat3, Mat4};
+use ultraviolet::vec::Vec4;
 
 pub struct BlinnPhong {
     camera: Box<dyn Camera>,
@@ -91,7 +92,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
 
         // Get location of the lights on the GPU, and length of the array CPU side
         let block_id = self.get_uniform_block_index("Lights")?;
-        let num_lights = self.data.lights.len();
+        let num_lights: GLuint = self.data.lights.len() as u32;
         println!("Lights Block Index: {}", block_id);
 
         // Rebind the lights (This is the layout in the shader code)
@@ -115,7 +116,7 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             gl::UniformBlockBinding(self.id, block_id, binding_point);
             let ptr = self.data.lights.as_ptr() as *const std::ffi::c_void;
             // Could be error site
-            let size = (num_lights * std::mem::size_of::<LightSource>()) as GLsizeiptr;
+            let size = (num_lights * std::mem::size_of::<LightSource>() as u32) as GLsizeiptr;
             gl::BindBuffer(gl::UNIFORM_BUFFER, buffer_id);
             gl::BufferData(gl::UNIFORM_BUFFER, size, ptr, gl::DYNAMIC_DRAW);
         }
@@ -123,32 +124,39 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         unsafe {
             gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer_id);
         }
-        self.set_uniform("num_lights", GL1U(num_lights as GLuint))?;
+        self.update_uniform("num_lights", &num_lights)?;
         Ok(())
     }
 
     // Set the ambient light for the scene
-    pub fn ambient_light(&mut self, color: &LightColor) -> Result<()> {
-        self.set_uniform("ambient_light_color", color.clone().to_vec4())
+    pub fn ambient_light(&mut self, color: &LightColor) -> Result<Weak<dyn UpdateUniform>> {
+        self.create_uniform("ambient_light_color", &color.clone().to_vec4())
     }
 
-    pub(crate) fn initialize(&mut self) -> () {
+    pub(crate) fn initialize(&mut self) -> Result<()> {
         unsafe {
             gl::Enable(gl::DEPTH_TEST);
             gl::Enable(gl::BLEND);
             gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-            // gl::BlendFunc(gl::ONE, gl::ONE);
-            // gl::DepthFunc(gl::ALWAYS);
             gl::CullFace(gl::BACK);
             gl::PointSize(3.0);
         }
 
+        // Create uniforms
+        let zero_vector = Vec4::default();
+        let identity_matrix = Mat4::identity();
+        self.create_uniform("ambient_light_color", &zero_vector)?;
+        self.create_uniform("view_projection_matrix", &identity_matrix)?;
+        self.create_uniform("camera_position", &identity_matrix)?;
+        self.create_uniform("num_lights", &0)?;
+
         self.context
             .glfw
             .set_swap_interval(glfw::SwapInterval::None);
+        Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
+    fn draw(&mut self) -> Result<()> {
         // Set OpenGL State for this Program
         unsafe {
             gl::UseProgram(self.id);
@@ -156,14 +164,14 @@ impl<'a> GLProgram<'a, BlinnPhong> {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        // Set uniforms for Vertex perspective transform, and vertex and normal Model-View
-        // Transform for inside the Blinn-Phong Vertex Shader
-        let (mvp, mv, mvn) = self.generate_view_matrices();
-        self.set_uniform("mvp", mvp)?;
-        self.set_uniform("mvn", mvn)?;
-        self.set_uniform("mv", mv)?;
+        // Set uniforms for vertex view-perspective transform, and camera position
+        if let Some(vpm) = self.data.camera.view_projection_matrix() {
+            self.update_uniform("view_projection_matrix", &vpm)?;
+            let camera_position = self.data.camera.position();
+            self.update_uniform("camera_position", &camera_position)?;
+        }
 
-        for mesh in self.data.meshes.values() {
+        for mesh in self.data.meshes.values_mut() {
             mesh.draw()?;
         }
 
@@ -206,33 +214,4 @@ impl<'a> GLProgram<'a, BlinnPhong> {
         self.context.window.swap_buffers();
         Ok(())
     }
-
-    // Help function to generate the view matrices used for setting vertex position and normals for
-    // Blinn-Phong Shaders
-    // TODO: Move to Camera impl ?
-    fn generate_view_matrices(&self) -> (Mat4, Mat4, Mat3) {
-        // Camera-Space
-        let mv = self.data.camera.view_matrix();
-        // Canonical View Volume
-        let mvp = self.data.camera.projection_matrix() * mv;
-        // Remove scaling on normals, move into World-Space
-        let mut mvn = mv.truncate();
-        mvn.inverse();
-        mvn.transpose();
-
-        (mvp, mv, mvn)
-    }
 }
-//
-// // Adds a mesh to the meshes map. Not used in the current paradigm
-// pub fn add_mesh<S>(&mut self, mesh_name: S, mesh: Mesh<UNATTACHED>) -> Result<()>
-// where
-//     S: AsRef<str>,
-// {
-//     let mesh = mesh.attach(self.id)?;
-//     self.data
-//         .meshes
-//         .insert(mesh_name.as_ref().to_string(), mesh);
-//     Ok(())
-// }
-//

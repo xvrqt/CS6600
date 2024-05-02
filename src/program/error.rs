@@ -1,4 +1,5 @@
 use super::mesh::MeshError;
+use crate::interface_blocks::InterfaceBlockError;
 use crate::program::scene_object::SceneObjectError;
 use crate::program::vao::VAOError;
 use crate::shader::error::ShaderError;
@@ -19,6 +20,8 @@ pub enum ProgramError {
     SceneObject(SceneObjectError),
     Mesh(MeshError),
     Uniform(UniformError),
+    InterfaceBlock(InterfaceBlockError),
+    UniformNotAttachedToProgram(String),
     End,
 }
 
@@ -57,11 +60,21 @@ impl std::fmt::Display for ProgramError {
             ProgramError::Uniform(error) => {
                 write!(f, "Uniform ERROR: '{}'.\n", error)
             }
+            ProgramError::InterfaceBlock(error) => {
+                write!(f, "Interface Block ERROR: '{}'.\n", error)
+            }
             ProgramError::VAOAlreadyExists(name) => {
                 write!(
                     f,
                     "VAO with name: '{}' already exists for this program.\n",
                     name
+                )
+            }
+            ProgramError::UniformNotAttachedToProgram(uniform_name) => {
+                write!(
+                    f,
+                    "Uniform with name '{}' does not exist or has not been attached nor initialized for this program.",
+                    uniform_name
                 )
             }
             ProgramError::VAODoesNotExist(name) => {

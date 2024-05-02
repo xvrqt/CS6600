@@ -75,19 +75,29 @@ impl Default for FragmentOnly {
 // Used to create a GLProgram
 impl<'a> GLProgram<'a, FragmentOnly> {
     // Enables a magic uniform value
-    pub fn enable_uniform(mut self, uniform: MagicUniform) -> Self {
+    pub fn enable_uniform(mut self, uniform: MagicUniform) -> Result<Self> {
+        match uniform {
+            MagicUniform::TIME => {
+                self.create_uniform("time", &0.0)?;
+            }
+            MagicUniform::RESOLUTION => {
+                self.create_uniform("resolution", &(1024.0, 1024.0))?;
+            }
+            _ => (),
+        };
+
         self.data.uniforms = self.data.uniforms | uniform;
-        self
+        Ok(self)
     }
 
     // Checks which magic uniforms are enabled and then sets them accordingly
     fn update_magic_uniforms(&self, vars: &FrameState) -> Result<()> {
         if self.data.uniforms.contains(MagicUniform::TIME) {
-            self.set_uniform("time", GL1F(vars.time.as_secs_f32()))?;
+            self.update_uniform("time", &vars.time.as_secs_f32())?;
         }
         if self.data.uniforms.contains(MagicUniform::RESOLUTION) {
             if let Some((x, y)) = vars.resolution {
-                self.set_uniform("resolution", GL2F(x, y))?;
+                self.update_uniform("resolution", &(x, y))?;
             }
         }
         Ok(())
@@ -112,7 +122,7 @@ impl<'a> GLProgram<'a, FragmentOnly> {
 }
 
 impl<'a> GLDraw for GLProgram<'a, FragmentOnly> {
-    fn draw(&self) -> Result<()> {
+    fn draw(&mut self) -> Result<()> {
         // Set OpenGL State for this Program
         unsafe {
             gl::UseProgram(self.id);

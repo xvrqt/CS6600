@@ -2,12 +2,17 @@ use super::{BlinnPhong, CustomShader, FragmentOnly, GLProgram, GLWindow, Program
 
 // All GLPrograms have a ShaderPipline which is composed of at least a VertexShader and
 // FragmentShader and may optionally have additional types of shaders
-use crate::shader::{
-    FragmentShader, GeometryShader, Shader, ShaderPipeline, TesselationShader, VertexShader,
+use crate::{
+    interface_blocks,
+    shader::{
+        FragmentShader, GeometryShader, Shader, ShaderPipeline, TesselationShader, VertexShader,
+    },
 };
 
 // // Convenience Error Type Alias
 type Result<T> = std::result::Result<T, ProgramError>;
+
+use std::collections::HashMap;
 
 // Dummy types to create a builder system for GLProgram
 #[derive(Debug)]
@@ -50,6 +55,8 @@ impl<'a> GLProgram<'a, CustomShader> {
         let fragment_shader: Shader<'a, FragmentShader> =
             Shader::<'a, FragmentShader>::new(fragment_shader_source.as_ref())?;
         let shaders = ShaderPipeline::new(id, vs, fragment_shader, None, None)?;
+        let uniforms = HashMap::new();
+        let interface_blocks = HashMap::new();
         // Initialize the sub-structure of this <Type> of GLProgram
         // This will also setup the OpenGL context with the vertex data necessary to trigger the
         // firing of every fragment.
@@ -57,6 +64,8 @@ impl<'a> GLProgram<'a, CustomShader> {
 
         Ok(GLProgram {
             id,
+            uniforms,
+            interface_blocks,
             context,
             shaders,
             data,
@@ -69,14 +78,19 @@ impl<'a> GLProgram<'a, CustomShader> {
         let vs = Shader::<VertexShader>::blinn_phong()?;
         let fs = Shader::<FragmentShader>::phong()?;
         let shaders = ShaderPipeline::new(id, vs, fs, None, None)?;
+        let uniforms = HashMap::new();
+        let interface_blocks = HashMap::new();
         let data = BlinnPhong::new();
+
         let mut phong = GLProgram {
             id,
             context,
             shaders,
+            uniforms,
+            interface_blocks,
             data,
         };
-        phong.initialize();
+        phong.initialize()?;
         Ok(phong)
     }
     pub fn blinn() -> Result<GLProgram<'a, BlinnPhong>> {
@@ -84,15 +98,19 @@ impl<'a> GLProgram<'a, CustomShader> {
         let vs = Shader::<VertexShader>::blinn_phong()?;
         let fs = Shader::<FragmentShader>::blinn()?;
         let shaders = ShaderPipeline::new(id, vs, fs, None, None)?;
+        let uniforms = HashMap::new();
+        let interface_blocks = HashMap::new();
         let data = BlinnPhong::new();
 
         let mut blinn = GLProgram {
             id,
             context,
             shaders,
+            uniforms,
+            interface_blocks,
             data,
         };
-        blinn.initialize();
+        blinn.initialize()?;
         Ok(blinn)
     }
 }

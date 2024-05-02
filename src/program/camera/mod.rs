@@ -33,6 +33,11 @@ pub trait Camera {
     fn view_matrix(&self) -> Mat4;
     // Returns a Matrix which will transform points in View-Space into the Canonical View-Volume.
     fn projection_matrix(&self) -> Mat4;
+    // Returns a pre-multiplied View-Projection Matrix, which is None if it hasn't changed since
+    // the last read
+    fn view_projection_matrix(&mut self) -> Option<Mat4>;
+    // Returns where the camera is in World-Space
+    fn position(&self) -> Vec3;
     // Takes a queue of CameraEvents and performs the necessary operations to update the View and
     // Projection matrices.
     fn update(&mut self, events: &mut VecDeque<CameraEvent>) -> ();

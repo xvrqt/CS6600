@@ -1,10 +1,13 @@
+use crate::GLUtilityError;
+
 // Error type for Uniforms
 #[derive(Debug)]
 pub enum UniformError {
     VectorLength,
     MatrixConversion((u8, u8)),
     SettingUniformValue(String),
-    GetUniformLocation(String),
+    CouldNotFindUniformIndex(String),
+    Other(GLUtilityError),
 }
 
 impl std::error::Error for UniformError {}
@@ -27,8 +30,11 @@ impl std::fmt::Display for UniformError {
             UniformError::SettingUniformValue(error) => {
                 write!(f, "Failed to set Uniform Value.\n{}", error)
             }
-            UniformError::GetUniformLocation(name) => {
+            UniformError::CouldNotFindUniformIndex(name) => {
                 write!(f, "Failed to find the location for '{}'.\n", name)
+            }
+            UniformError::Other(error) => {
+                write!(f, "{}", error)
             }
         }
     }

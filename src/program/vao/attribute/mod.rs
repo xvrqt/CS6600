@@ -51,25 +51,8 @@ impl Attribute {
         })
     }
 }
-// Arrays of Vec3<f32>'s 'know' how to set up their attribute pointers
-pub struct GLAV3(pub Vec<GL3F>);
 pub trait SetAttributePointer {
     fn set_attribute_pointer(&self, id: GLuint) -> Result<()>;
-}
-impl SetAttributePointer for GL3FV {
-    fn set_attribute_pointer(&self, id: GLuint) -> Result<()> {
-        // Pointer to the vector's buffer
-        let ptr = self.0.as_ptr() as *const std::ffi::c_void;
-        let size = (self.0.len() * std::mem::size_of::<GL3F>()) as GLsizeiptr;
-        let element_size = (std::mem::size_of::<GL3F>()) as GLsizei;
-        unsafe {
-            // Send the data to the GPU
-            gl::BufferData(gl::ARRAY_BUFFER, size, ptr, gl::STATIC_DRAW);
-            // Tell OpenGL how to pull data from the buffer into the attributes inside the shaders
-            gl::VertexAttribPointer(id, 3, gl::FLOAT, gl::FALSE, element_size, ptr::null());
-        }
-        Ok(())
-    }
 }
 
 impl SetAttributePointer for Vec<Vec2> {
